@@ -1,0 +1,60 @@
+// Anthropic + OpenAI pricing (USD per million tokens) — updated 2026-05.
+// Single source of truth. Heuristics only; no LLM call.
+
+interface ModelPrice {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite5m: number; // ephemeral 5m (Anthropic-specific; OpenAI has no analog → 0)
+}
+
+const PRICES: Record<string, ModelPrice> = {
+  // Anthropic
+  'claude-opus-4-7': { input: 15.0, output: 75.0, cacheRead: 1.5, cacheWrite5m: 18.75 },
+  'claude-opus-4-6': { input: 15.0, output: 75.0, cacheRead: 1.5, cacheWrite5m: 18.75 },
+  'claude-opus-4': { input: 15.0, output: 75.0, cacheRead: 1.5, cacheWrite5m: 18.75 },
+  'claude-sonnet-4-6': { input: 3.0, output: 15.0, cacheRead: 0.3, cacheWrite5m: 3.75 },
+  'claude-sonnet-4-5': { input: 3.0, output: 15.0, cacheRead: 0.3, cacheWrite5m: 3.75 },
+  'claude-sonnet-4': { input: 3.0, output: 15.0, cacheRead: 0.3, cacheWrite5m: 3.75 },
+  'claude-haiku-4-5': { input: 1.0, output: 5.0, cacheRead: 0.1, cacheWrite5m: 1.25 },
+  'claude-haiku-4': { input: 1.0, output: 5.0, cacheRead: 0.1, cacheWrite5m: 1.25 },
+  // OpenAI (estimates — refine as official pricing updates)
+  'gpt-5': { input: 1.25, output: 10.0, cacheRead: 0.125, cacheWrite5m: 0 },
+  'gpt-5-codex': { input: 1.25, output: 10.0, cacheRead: 0.125, cacheWrite5m: 0 },
+  'gpt-5-mini': { input: 0.25, output: 2.0, cacheRead: 0.025, cacheWrite5m: 0 },
+  'gpt-4o': { input: 2.5, output: 10.0, cacheRead: 1.25, cacheWrite5m: 0 },
+  'gpt-4o-mini': { input: 0.15, output: 0.6, cacheRead: 0.075, cacheWrite5m: 0 },
+};
+
+function resolveModel(model: string): ModelPrice {
+  const normalized = model.replace(/\[.*\]/, '').trim().toLowerCase();
+  if (PRICES[normalized]) return PRICES[normalized];
+  // family fallbacks
+  if (normalized.includes('opus')) return PRICES['claude-opus-4-7']!;
+  if (normalized.includes('haiku')) return PRICES['claude-haiku-4-5']!;
+  if (normalized.includes('sonnet')) return PRICES['claude-sonnet-4-6']!;
+  if (normalized.includes('gpt-5-codex')) return PRICES['gpt-5-codex']!;
+  if (normalized.includes('gpt-5-mini')) return PRICES['gpt-5-mini']!;
+  if (normalized.includes('gpt-5')) return PRICES['gpt-5']!;
+  if (normalized.includes('gpt-4o-mini')) return PRICES['gpt-4o-mini']!;
+  if (normalized.includes('gpt-4o')) return PRICES['gpt-4o']!;
+  // unknown — default to Sonnet pricing
+  return PRICES['claude-sonnet-4-6']!;
+}
+
+export function estimateUsd(opts: {
+  model: string;
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+}): number {
+  const p = resolveModel(opts.model);
+  const cost =
+    (opts.input * p.input +
+      opts.output * p.output +
+      opts.cacheRead * p.cacheRead +
+      opts.cacheWrite * p.cacheWrite5m) /
+    1_000_000;
+  return Math.round(cost * 1_000_000) / 1_000_000;
+}

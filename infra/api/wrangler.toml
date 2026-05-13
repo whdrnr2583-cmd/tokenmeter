@@ -1,0 +1,19 @@
+name = "token-meter-api"
+main = "src/index.ts"
+compatibility_date = "2026-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Bind D1. Get database_id via:
+#   wrangler d1 create token-meter
+[[d1_databases]]
+binding = "DB"
+database_name = "token-meter"
+database_id = "REPLACE_WITH_D1_ID"
+
+# Secrets (do NOT commit values):
+#   wrangler secret put POLAR_WEBHOOK_SECRET
+#   wrangler secret put RESEND_API_KEY
+
+[vars]
+APP_NAME = "Token Meter"
+SITE_URL = "https://tokenmeter.dev"

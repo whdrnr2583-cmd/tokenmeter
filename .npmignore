@@ -1,0 +1,26 @@
+# Source — ship dist only
+src
+scripts
+infra
+test
+.github
+
+# Docs (project planning, not user-facing)
+01-problem.md
+02-product.md
+03-business.md
+04-risks.md
+05-decisions.md
+DEPLOYMENT.md
+RELEASE_RUNBOOK.md
+STRATEGY.md
+
+# Dev config
+tsconfig.json
+.gitignore
+.npmignore
+
+# Local data
+*.db
+*.db-wal
+*.db-shm

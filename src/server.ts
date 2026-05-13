@@ -1,0 +1,270 @@
+import Fastify from 'fastify';
+import fastifyStatic from '@fastify/static';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import { migrate, openDb } from './db.js';
+import { ingestAll } from './ingest.js';
+import { byHour, byMcp, byModel, byProject, daily, overview } from './stats.js';
+import {
+  createRule,
+  deleteRule,
+  dryRun,
+  evaluateRules,
+  getRule,
+  listRules,
+  popPendingDesktopNotifications,
+  recentFirings,
+  updateRule,
+} from './rules.js';
+import type {
+  ActionType,
+  RuleInput,
+  RuleMetric,
+  RuleOp,
+} from './rules-types.js';
+
+// Runtime enum guards (TS types alone don't protect against malicious JSON).
+const VALID_METRICS = new Set<RuleMetric>([
+  'daily_usd',
+  'weekly_usd',
+  'monthly_usd',
+  'daily_output_tokens',
+  'daily_cache_write_tokens',
+]);
+const VALID_OPS = new Set<RuleOp>(['>=', '>']);
+const VALID_ACTIONS = new Set<ActionType>([
+  'notify.desktop',
+  'notify.webhook',
+  'notify.email',
+]);
+
+interface ValidationError {
+  ok: false;
+  field: string;
+}
+function validateRuleFields(
+  patch: Partial<RuleInput>,
+  required: boolean,
+): ValidationError | null {
+  if (patch.metric !== undefined && !VALID_METRICS.has(patch.metric as RuleMetric)) {
+    return { ok: false, field: 'metric' };
+  }
+  if (patch.op !== undefined && !VALID_OPS.has(patch.op as RuleOp)) {
+    return { ok: false, field: 'op' };
+  }
+  if (patch.action_type !== undefined && !VALID_ACTIONS.has(patch.action_type as ActionType)) {
+    return { ok: false, field: 'action_type' };
+  }
+  if (patch.threshold !== undefined) {
+    const t = Number(patch.threshold);
+    if (!Number.isFinite(t) || t < 0) return { ok: false, field: 'threshold' };
+  }
+  if (patch.cooldown_ms !== undefined) {
+    const c = Number(patch.cooldown_ms);
+    if (!Number.isFinite(c) || c < 0 || c > 30 * 24 * 60 * 60 * 1000) {
+      return { ok: false, field: 'cooldown_ms' };
+    }
+  }
+  if (required) {
+    if (!patch.name || !patch.metric || !patch.op || patch.threshold === undefined ||
+        !patch.action_type || !patch.action_config) {
+      return { ok: false, field: 'missing_required' };
+    }
+  }
+  return null;
+}
+import {
+  sessionMessages,
+  sessionOverview,
+  sessionToolSummary,
+  sessionTools,
+  topSessions,
+} from './sessions.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PUBLIC_DIR = join(__dirname, '..', 'public');
+const PORT = Number.parseInt(process.env.PORT ?? '8765', 10);
+
+const db = openDb();
+migrate(db);
+// Initial ingest on boot.
+ingestAll(db);
+
+const app = Fastify({ logger: false });
+
+await app.register(fastifyStatic, { root: PUBLIC_DIR, prefix: '/' });
+
+function parseDays(q: unknown): number {
+  if (typeof q === 'string') {
+    const n = Number.parseInt(q, 10);
+    if (Number.isFinite(n) && n > 0 && n <= 365) return n;
+  }
+  return 30;
+}
+
+app.get('/api/overview', async (req) => {
+  const days = parseDays((req.query as Record<string, unknown>).days);
+  return { days, ...overview(db, days) };
+});
+
+app.get('/api/daily', async (req) => {
+  const days = parseDays((req.query as Record<string, unknown>).days);
+  return { days, rows: daily(db, days) };
+});
+
+app.get('/api/models', async (req) => {
+  const days = parseDays((req.query as Record<string, unknown>).days);
+  return { days, rows: byModel(db, days) };
+});
+
+app.get('/api/projects', async (req) => {
+  const days = parseDays((req.query as Record<string, unknown>).days);
+  return { days, rows: byProject(db, days, 20) };
+});
+
+app.get('/api/mcp', async (req) => {
+  const days = parseDays((req.query as Record<string, unknown>).days);
+  return { days, rows: byMcp(db, days, 30) };
+});
+
+app.get('/api/hourly', async (req) => {
+  const days = parseDays((req.query as Record<string, unknown>).days);
+  return { days, rows: byHour(db, days) };
+});
+
+app.post('/api/refresh', async () => {
+  return ingestAll(db);
+});
+
+// ---------- Rules ----------
+
+app.get('/api/rules', async () => ({ rows: listRules(db) }));
+
+app.post('/api/rules', async (req, reply) => {
+  const body = (req.body ?? {}) as Partial<RuleInput>;
+  const err = validateRuleFields(body, true);
+  if (err) return reply.code(400).send({ error: 'invalid_field', field: err.field });
+  const rule = createRule(db, {
+    name: String(body.name).slice(0, 80),
+    enabled: body.enabled !== false,
+    metric: body.metric!,
+    op: body.op!,
+    threshold: Number(body.threshold),
+    action_type: body.action_type!,
+    action_config: body.action_config!,
+    cooldown_ms: body.cooldown_ms,
+  });
+  return rule;
+});
+
+app.patch('/api/rules/:id', async (req, reply) => {
+  const id = Number((req.params as { id: string }).id);
+  if (!Number.isFinite(id)) return reply.code(400).send({ error: 'invalid_id' });
+  const body = (req.body ?? {}) as Partial<RuleInput>;
+  const err = validateRuleFields(body, false);
+  if (err) return reply.code(400).send({ error: 'invalid_field', field: err.field });
+  const rule = updateRule(db, id, body);
+  if (!rule) return reply.code(404).send({ error: 'not_found' });
+  return rule;
+});
+
+app.delete('/api/rules/:id', async (req, reply) => {
+  const id = Number((req.params as { id: string }).id);
+  if (!Number.isFinite(id)) return reply.code(400).send({ error: 'invalid_id' });
+  const ok = deleteRule(db, id);
+  if (!ok) return reply.code(404).send({ error: 'not_found' });
+  return { ok: true };
+});
+
+app.get('/api/rules/:id', async (req, reply) => {
+  const id = Number((req.params as { id: string }).id);
+  if (!Number.isFinite(id)) return reply.code(400).send({ error: 'invalid_id' });
+  const rule = getRule(db, id);
+  if (!rule) return reply.code(404).send({ error: 'not_found' });
+  return rule;
+});
+
+app.get('/api/rules/:id/firings', async (req, reply) => {
+  const id = Number((req.params as { id: string }).id);
+  if (!Number.isFinite(id)) return reply.code(400).send({ error: 'invalid_id' });
+  return { rows: recentFirings(db, id, 50) };
+});
+
+app.post('/api/rules/dry-run', async (req, reply) => {
+  const body = req.body as { metric?: RuleInput['metric']; op?: RuleInput['op']; threshold?: number; lookback_days?: number } | null;
+  if (!body || !body.metric || !body.op || body.threshold === undefined) {
+    return reply.code(400).send({ error: 'missing_fields' });
+  }
+  return dryRun(
+    db,
+    { metric: body.metric, op: body.op, threshold: Number(body.threshold) },
+    Math.min(180, Math.max(7, body.lookback_days ?? 30)),
+  );
+});
+
+app.get('/api/desktop-notifications', async () => ({
+  rows: popPendingDesktopNotifications(db, 10),
+}));
+
+// ---------- Session drill-down (Pro feature, ungated in dev) ----------
+
+app.get('/api/sessions', async (req) => {
+  const q = req.query as Record<string, unknown>;
+  const days = parseDays(q.days);
+  const limit = Math.min(100, Math.max(1, Number.parseInt(String(q.limit ?? '20'), 10) || 20));
+  const project = typeof q.project === 'string' && q.project.length > 0 ? q.project : null;
+  return { days, rows: topSessions(db, days, limit, project) };
+});
+
+app.get('/api/sessions/:id', async (req, reply) => {
+  const id = decodeURIComponent((req.params as { id: string }).id);
+  const overview = sessionOverview(db, id);
+  if (!overview) return reply.code(404).send({ error: 'not_found' });
+  return overview;
+});
+
+app.get('/api/sessions/:id/messages', async (req, reply) => {
+  const id = decodeURIComponent((req.params as { id: string }).id);
+  const overview = sessionOverview(db, id);
+  if (!overview) return reply.code(404).send({ error: 'not_found' });
+  return { rows: sessionMessages(db, id) };
+});
+
+app.get('/api/sessions/:id/tools', async (req) => {
+  const id = decodeURIComponent((req.params as { id: string }).id);
+  return {
+    items: sessionTools(db, id),
+    summary: sessionToolSummary(db, id),
+  };
+});
+
+app.get('/api/sources', async (req) => {
+  const days = parseDays((req.query as Record<string, unknown>).days);
+  const since = Date.now() - days * 86_400_000;
+  const rows = db
+    .prepare(
+      `SELECT source,
+              COALESCE(SUM(usd_estimate), 0) AS usd,
+              COALESCE(SUM(input_tokens), 0) AS input,
+              COALESCE(SUM(output_tokens), 0) AS output,
+              COALESCE(SUM(cache_read_tokens), 0) AS cache_read,
+              COUNT(*) AS events
+       FROM token_events WHERE ts >= ?
+       GROUP BY source ORDER BY usd DESC`,
+    )
+    .all(since);
+  return { days, rows };
+});
+
+await app.listen({ host: '127.0.0.1', port: PORT });
+console.log(`Token Meter dashboard ready at http://127.0.0.1:${PORT}`);
+
+// Periodic incremental ingest + rule evaluation every 30 seconds.
+setInterval(() => {
+  try {
+    ingestAll(db);
+  } catch (err) {
+    console.error('ingest tick failed:', err);
+  }
+  evaluateRules(db).catch((err) => console.error('rule eval failed:', err));
+}, 30_000);

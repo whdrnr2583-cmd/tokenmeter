@@ -1,0 +1,72 @@
+{
+  "name": "token-meter",
+  "version": "0.1.0",
+  "description": "Local-first dashboard + MCP server for Claude Code and Codex token usage. MCP-aware, multi-vendor, MIT.",
+  "license": "MIT",
+  "type": "module",
+  "homepage": "https://tokenmeter.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/whdrnr2583-cmd/tokenmeter.git"
+  },
+  "bugs": {
+    "url": "https://github.com/whdrnr2583-cmd/tokenmeter/issues"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "codex",
+    "openai",
+    "anthropic",
+    "tokens",
+    "mcp",
+    "model-context-protocol",
+    "observability",
+    "cli",
+    "dashboard",
+    "cost",
+    "llm"
+  ],
+  "author": "Token Meter contributors",
+  "bin": {
+    "token-meter": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/postbuild.cjs",
+    "ingest": "node --import tsx/esm src/cli.ts ingest",
+    "stats": "node --import tsx/esm src/cli.ts stats",
+    "serve": "node --import tsx/esm src/server.ts",
+    "mcp": "node --import tsx/esm src/cli.ts mcp",
+    "dev:web": "vite",
+    "build:web": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx/esm --test test/**/*.test.ts",
+    "audit": "node scripts/quality-audit.cjs",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+  },
+  "files": [
+    "dist",
+    "public",
+    "docs",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.5.0",
+    "chokidar": "^3.6.0",
+    "fastify": "^5.1.0",
+    "@fastify/static": "^8.0.3",
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

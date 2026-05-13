@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Token Meter — one local dashboard for Claude Code and Codex usage. Free, MCP-level breakdown, MIT licensed." />
+    <meta property="og:title" content="Token Meter" />
+    <meta property="og:description" content="One local dashboard for your Claude Code and Codex usage." />
+    <meta property="og:url" content="https://tokenmeter.dev" />
+    <title>Token Meter — Your meter for Claude Code and Codex</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header>
+      <a href="/" class="brand">Token Meter</a>
+      <nav>
+        <a href="#features">Features</a>
+        <a href="#pricing">Pricing</a>
+        <a href="https://github.com/REPLACE_ME/token-meter" target="_blank" rel="noreferrer">GitHub</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <h1>Your meter for<br /><span class="accent">Claude Code &amp; Codex.</span></h1>
+      <p class="sub">
+        Local-first dashboard that shows how many tokens you spent,
+        where they went, and how fast each model and MCP tool actually runs.
+        Your JSONL never leaves your machine.
+      </p>
+      <div class="cta">
+        <form id="waitlist" class="waitlist">
+          <input type="email" name="email" placeholder="you@example.com" required autocomplete="email" />
+          <button type="submit">Join the beta</button>
+        </form>
+        <p class="hint" id="waitlist-status">Free at launch. Pro $5/mo when ready.</p>
+      </div>
+      <pre class="code">npx token-meter ingest &amp;&amp; npx token-meter serve</pre>
+    </section>
+
+    <section id="features" class="features">
+      <h2>Why Token Meter</h2>
+      <div class="grid">
+        <article>
+          <h3>📊 Multi-vendor in one view</h3>
+          <p>Claude Code <code>~/.claude/projects/</code> and Codex <code>~/.codex/sessions/</code> merged. No SDK, no proxy.</p>
+        </article>
+        <article>
+          <h3>🔍 MCP &amp; tool breakdown</h3>
+          <p>See exactly which MCP server eats your tokens and which tool is slow. Latency, response size, call count.</p>
+        </article>
+        <article>
+          <h3>💵 USD-equivalent cost</h3>
+          <p>Your Max plan is a flat fee — but what would the API have cost? Token Meter shows the saving (or burn). <em>Estimates only — not your actual invoice.</em></p>
+        </article>
+        <article>
+          <h3>🏠 Local-first, private</h3>
+          <p>SQLite in <code>~/.tokenmeter/</code>. No upload, no cloud account required for the free tier.</p>
+        </article>
+        <article>
+          <h3>⚡ MIT licensed core</h3>
+          <p>The CLI and dashboard are open source. Fork it, audit it, ship it.</p>
+        </article>
+        <article>
+          <h3>🕒 Time-of-day insight</h3>
+          <p>Find your most expensive hours, your slowest periods, and the days that blew up the budget.</p>
+        </article>
+        <article>
+          <h3>🔔 Smart alerts</h3>
+          <p>Threshold rules with desktop, email, and webhook actions. Pipe into Slack, Discord, n8n — your call.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="pricing" class="pricing">
+      <h2>Pricing</h2>
+      <div class="tiers">
+        <article>
+          <h3>Free</h3>
+          <p class="price">$0</p>
+          <ul>
+            <li>Claude Code + Codex parsing</li>
+            <li>MCP &amp; tool breakdown</li>
+            <li>Project / model / hour breakdown</li>
+            <li><strong>7-day</strong> history</li>
+            <li>USD-equivalent cost</li>
+            <li>1 desktop alert rule</li>
+          </ul>
+        </article>
+        <article class="featured">
+          <h3>Pro</h3>
+          <p class="price">$5<span>/mo</span></p>
+          <ul>
+            <li>Everything in Free</li>
+            <li><strong>30-day</strong> history</li>
+            <li><strong>Smart alerts</strong> unlimited — desktop, email, webhook, weekly digest</li>
+            <li><strong>Session drill-down</strong> — find the exact session that blew the budget</li>
+            <li><strong>Cost forecast &amp; pace alerts</strong> — "month-end will be $X"</li>
+            <li><strong>CSV / JSON export</strong></li>
+            <li><strong>Custom pricing matrix</strong> — apply your contracted API rates</li>
+            <li>Weekly recommendations</li>
+            <li>Anonymous benchmark comparison</li>
+            <li>Auto-trim rule suggestions</li>
+          </ul>
+          <p class="hint">Email support, handled within 48h.</p>
+        </article>
+        <article class="soon">
+          <h3>Pro+ <span class="badge">later</span></h3>
+          <p class="price">~$24<span>/mo</span></p>
+          <ul>
+            <li><strong>Unlimited</strong> history</li>
+            <li>Local LLM proxy (Ollama, LM Studio, llama.cpp, vLLM)</li>
+            <li>GPU / VRAM tracking</li>
+            <li>Behavior-changing automation (MCP auto-trim, model switching)</li>
+            <li>Model benchmark lab</li>
+            <li>Multi-machine sync</li>
+            <li>PDF reports (auto-emailed)</li>
+          </ul>
+          <p class="hint">Ships once Pro signups + community demand confirm the segment.</p>
+        </article>
+      </div>
+    </section>
+
+    <footer>
+      <p>© <span id="year"></span> Token Meter · <a href="mailto:hello@tokenmeter.dev">hello@tokenmeter.dev</a></p>
+    </footer>
+
+    <script src="/site.js"></script>
+  </body>
+</html>

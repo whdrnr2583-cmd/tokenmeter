@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Token Meter</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  </head>
+  <body>
+    <header>
+      <div class="brand">
+        <h1>Token Meter</h1>
+        <span class="tag">Claude Code · MVP</span>
+      </div>
+      <div class="controls">
+        <label>
+          기간
+          <select id="days">
+            <option value="7">7일</option>
+            <option value="14">14일</option>
+            <option value="30" selected>30일</option>
+            <option value="60">60일</option>
+            <option value="90">90일</option>
+          </select>
+        </label>
+        <button id="refresh" type="button">↻ 새로고침</button>
+      </div>
+    </header>
+
+    <main>
+      <p class="disclaimer">
+        💡 USD 수치는 <strong>로컬 토큰 카운트 × 공시 단가</strong>로 계산한 추정치입니다.
+        실제 청구액(Anthropic·OpenAI 인보이스)과 다를 수 있으며, 단가 변동·서브스크립션 정액·캐시 변형은 반영하지 않습니다.
+        <em>낭비 위치 신호로 사용하고, 회계 자료로는 쓰지 마세요.</em>
+      </p>
+      <section class="cards" id="overview-cards"></section>
+
+      <section>
+        <h2>소스별 (Claude Code · Codex)</h2>
+        <div class="table-wrap"><table id="table-sources"></table></div>
+      </section>
+
+      <section class="grid">
+        <article>
+          <h2>일별 비용 (USD)</h2>
+          <canvas id="chart-daily"></canvas>
+        </article>
+        <article>
+          <h2>시간대별 출력 토큰</h2>
+          <canvas id="chart-hourly"></canvas>
+        </article>
+        <article>
+          <h2>모델별</h2>
+          <div class="table-wrap"><table id="table-models"></table></div>
+        </article>
+        <article>
+          <h2>프로젝트별</h2>
+          <div class="table-wrap"><table id="table-projects"></table></div>
+        </article>
+      </section>
+
+      <section>
+        <h2>MCP · 도구별 분석</h2>
+        <p class="hint">
+          🟢 호출 횟수·응답 토큰·지연은 직접 측정. 🟡 청구 기여도(USD)는 추정.
+        </p>
+        <div class="table-wrap"><table id="table-mcp"></table></div>
+      </section>
+
+      <section id="sessions-section">
+        <div class="section-head">
+          <h2>비싼 세션 Top (드릴다운)</h2>
+          <span class="hint">행 클릭 → 세션 내부 메시지·도구별 분해</span>
+        </div>
+        <div class="table-wrap"><table id="table-sessions"></table></div>
+      </section>
+
+      <dialog id="session-dialog" class="wide">
+        <header class="dialog-head">
+          <div>
+            <h3 id="session-dialog-title">세션 상세</h3>
+            <div id="session-dialog-meta" class="hint"></div>
+          </div>
+          <button id="session-close" type="button" class="btn-secondary">닫기</button>
+        </header>
+        <div class="dialog-tabs">
+          <button data-tab="messages" class="tab active">메시지</button>
+          <button data-tab="tools" class="tab">도구</button>
+        </div>
+        <div id="tab-messages" class="tab-body active">
+          <div class="table-wrap"><table id="table-session-messages"></table></div>
+        </div>
+        <div id="tab-tools" class="tab-body">
+          <h4>요약 (도구별)</h4>
+          <div class="table-wrap"><table id="table-session-tool-summary"></table></div>
+          <h4 style="margin-top:16px">호출 순서</h4>
+          <div class="table-wrap"><table id="table-session-tools"></table></div>
+        </div>
+      </dialog>
+
+      <section id="rules-section">
+        <div class="section-head">
+          <h2>알림 룰 (Actions)</h2>
+          <button id="rule-new" type="button" class="btn-primary">+ 새 룰</button>
+        </div>
+        <p class="hint">
+          임계값 초과 시 데스크탑 알림 / 웹훅 / 이메일 발송. 24시간 쿨다운 기본.
+          Slack·Discord·n8n 등 추가 채널은 웹훅 + <a href="https://github.com/REPLACE_ME/token-meter/blob/main/docs/customization.md" target="_blank" rel="noreferrer">커스터마이즈 가이드</a> 참조.
+        </p>
+        <div class="table-wrap"><table id="table-rules"></table></div>
+      </section>
+
+      <dialog id="rule-dialog">
+        <form id="rule-form" method="dialog">
+          <h3 id="rule-form-title">새 룰</h3>
+          <label>이름
+            <input name="name" type="text" required maxlength="80" placeholder="예: Daily over $50" />
+          </label>
+          <label>활성화
+            <input name="enabled" type="checkbox" checked />
+          </label>
+          <label>메트릭
+            <select name="metric" required>
+              <option value="daily_usd">일별 USD</option>
+              <option value="weekly_usd">주별 USD</option>
+              <option value="monthly_usd">월별 USD</option>
+              <option value="daily_output_tokens">일별 output 토큰</option>
+              <option value="daily_cache_write_tokens">일별 cache write 토큰</option>
+            </select>
+          </label>
+          <label>비교
+            <select name="op" required>
+              <option value=">=">≥</option>
+              <option value=">">&gt;</option>
+            </select>
+          </label>
+          <label>임계값
+            <input name="threshold" type="number" step="0.01" min="0" required />
+          </label>
+          <label>액션
+            <select name="action_type" required>
+              <option value="notify.desktop">데스크탑 알림 (Free·Pro)</option>
+              <option value="notify.webhook">웹훅 POST (Pro)</option>
+              <option value="notify.email">이메일 (Pro)</option>
+            </select>
+          </label>
+          <label id="webhook-url-field" hidden>웹훅 URL
+            <input name="webhook_url" type="url" placeholder="https://hooks.slack.com/..." />
+            <small class="warn-text">⚠ 본인이 신뢰하는 URL만 입력하세요. 내부 호스트(localhost·private IP)를 가리키면 SSRF 위험.</small>
+          </label>
+          <label id="email-to-field" hidden>이메일
+            <input name="email_to" type="email" placeholder="you@example.com" />
+          </label>
+          <label>쿨다운 (시간)
+            <input name="cooldown_hours" type="number" min="0" step="1" value="24" />
+          </label>
+          <div class="dry-run">
+            <button type="button" id="rule-dry-run" class="btn-secondary">드라이런 (30일 미리보기)</button>
+            <span id="rule-dry-run-result" class="hint"></span>
+          </div>
+          <div class="dialog-actions">
+            <button type="button" id="rule-cancel" class="btn-secondary">취소</button>
+            <button type="submit" class="btn-primary">저장</button>
+          </div>
+        </form>
+      </dialog>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
