@@ -16,7 +16,8 @@
       <nav>
         <a href="#features">Features</a>
         <a href="#pricing">Pricing</a>
-        <a href="https://github.com/REPLACE_ME/token-meter" target="_blank" rel="noreferrer">GitHub</a>
+        <a href="https://github.com/whdrnr2583-cmd/tokenmeter" target="_blank" rel="noreferrer">GitHub</a>
+        <a href="https://www.npmjs.com/package/@whdrnr2583/token-meter" target="_blank" rel="noreferrer">npm</a>
       </nav>
     </header>
 
@@ -28,13 +29,14 @@
         Your JSONL never leaves your machine.
       </p>
       <div class="cta">
-        <form id="waitlist" class="waitlist">
-          <input type="email" name="email" placeholder="you@example.com" required autocomplete="email" />
-          <button type="submit">Join the beta</button>
-        </form>
-        <p class="hint" id="waitlist-status">Free at launch. Pro $5/mo when ready.</p>
+        <!-- Tally beta waitlist embed. Replace TALLY_FORM_ID with your form id. -->
+        <iframe data-tally-src="https://tally.so/embed/TALLY_FORM_ID?alignLeft=1&hideTitle=1&transparentBackground=1&dynamicHeight=1"
+          loading="lazy" width="100%" height="220" frameborder="0" marginheight="0" marginwidth="0"
+          title="Token Meter beta waitlist"></iframe>
+        <p class="hint">Free, MIT licensed core. Pro tier ships after the beta — no charge during beta.</p>
       </div>
-      <pre class="code">npx token-meter ingest &amp;&amp; npx token-meter serve</pre>
+      <pre class="code">npm install -g @whdrnr2583/token-meter
+token-meter ingest &amp;&amp; token-meter serve</pre>
     </section>
 
     <section id="features" class="features">
@@ -54,7 +56,7 @@
         </article>
         <article>
           <h3>🏠 Local-first, private</h3>
-          <p>SQLite in <code>~/.tokenmeter/</code>. No upload, no cloud account required for the free tier.</p>
+          <p>SQLite in <code>~/.tokenpulse/</code> (renamed to <code>~/.tokenmeter/</code> in a future release with an automatic migration). No upload, no cloud account required for the free tier.</p>
         </article>
         <article>
           <h3>⚡ MIT licensed core</h3>
@@ -87,7 +89,7 @@
           </ul>
         </article>
         <article class="featured">
-          <h3>Pro</h3>
+          <h3>Pro <span class="badge">after beta</span></h3>
           <p class="price">$5<span>/mo</span></p>
           <ul>
             <li>Everything in Free</li>
@@ -101,7 +103,7 @@
             <li>Anonymous benchmark comparison</li>
             <li>Auto-trim rule suggestions</li>
           </ul>
-          <p class="hint">Email support, handled within 48h.</p>
+          <p class="hint">Not yet purchasable. Join the waitlist above and we'll email you when Pro opens.</p>
         </article>
         <article class="soon">
           <h3>Pro+ <span class="badge">later</span></h3>

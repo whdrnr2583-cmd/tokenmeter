@@ -1,33 +1,14 @@
-// Replace with your deployed Workers URL (or set to '/api' if proxied).
-const API_BASE = window.TOKEN_METER_API ?? 'https://api.tokenmeter.dev';
+// Static landing — no backend wiring during beta (PMF gate).
+// Waitlist is handled entirely by the embedded Tally form (data-tally-src).
+// When Pro launches, swap the Tally embed for the Polar checkout button.
 
 document.getElementById('year').textContent = String(new Date().getFullYear());
 
-const form = document.getElementById('waitlist');
-const status = document.getElementById('waitlist-status');
-
-form.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const email = new FormData(form).get('email');
-  if (!email || typeof email !== 'string') return;
-  const button = form.querySelector('button');
-  button.disabled = true;
-  status.textContent = 'Saving…';
-  try {
-    const res = await fetch(`${API_BASE}/v1/waitlist`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email, source: 'landing' }),
-    });
-    if (res.ok) {
-      status.textContent = "You're on the list. We'll email you when the beta opens.";
-      form.reset();
-    } else {
-      status.textContent = 'Could not save your email. Try again in a moment.';
-    }
-  } catch {
-    status.textContent = 'Network error. Try again in a moment.';
-  } finally {
-    button.disabled = false;
-  }
-});
+// Tally embed loader. The iframe carries data-tally-src; this script swaps it
+// into src once the page is ready so the embed lazy-loads predictably.
+(function loadTally() {
+  const frames = document.querySelectorAll('iframe[data-tally-src]');
+  frames.forEach((f) => {
+    if (!f.getAttribute('src')) f.setAttribute('src', f.getAttribute('data-tally-src'));
+  });
+})();
