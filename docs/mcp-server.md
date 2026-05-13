@@ -14,6 +14,10 @@ release with an automatic migration.)
 token-meter mcp        # stdio transport
 ```
 
+The CLI binary is `token-meter`. The npm package is published under a scope
+(`@whdrnr2583/token-meter`) because the bare name collides with an existing
+similar package on npm.
+
 ## Register with Claude Code
 
 Add to your Claude Code MCP config (`~/.claude.json` or via `claude mcp add`):
@@ -23,7 +27,7 @@ Add to your Claude Code MCP config (`~/.claude.json` or via `claude mcp add`):
   "mcpServers": {
     "token-meter": {
       "command": "npx",
-      "args": ["-y", "token-meter", "mcp"]
+      "args": ["-y", "@whdrnr2583/token-meter", "mcp"]
     }
   }
 }
@@ -32,12 +36,12 @@ Add to your Claude Code MCP config (`~/.claude.json` or via `claude mcp add`):
 Or:
 
 ```sh
-claude mcp add token-meter -- npx -y token-meter mcp
+claude mcp add token-meter -- npx -y @whdrnr2583/token-meter mcp
 ```
 
 ## Register with Cursor / Claude Desktop
 
-Same idea — add an MCP server entry pointing at `npx -y token-meter mcp`
+Same idea — add an MCP server entry pointing at `npx -y @whdrnr2583/token-meter mcp`
 (or the absolute path to a local checkout's `dist/cli.js mcp`).
 
 ## Tools exposed

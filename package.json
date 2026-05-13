@@ -1,5 +1,5 @@
 {
-  "name": "token-meter",
+  "name": "@whdrnr2583/token-meter",
   "version": "0.1.0",
   "description": "Local-first dashboard + MCP server for Claude Code and Codex token usage. MCP-aware, multi-vendor, MIT.",
   "license": "MIT",

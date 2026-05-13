@@ -10,16 +10,20 @@ tool, per hour. Your data never leaves your machine.
 ## Quick start
 
 ```sh
-npx token-meter ingest        # scan ~/.claude/projects + ~/.codex/sessions
-npx token-meter stats 30      # CLI summary for last 30 days
-npx token-meter serve         # http://localhost:8765 dashboard
-npx token-meter mcp           # run as an MCP server for Claude Code / Cursor
+npx @whdrnr2583/token-meter ingest        # scan ~/.claude/projects + ~/.codex/sessions
+npx @whdrnr2583/token-meter stats 30      # CLI summary for last 30 days
+npx @whdrnr2583/token-meter serve         # http://localhost:8765 dashboard
+npx @whdrnr2583/token-meter mcp           # run as an MCP server for Claude Code / Cursor
 ```
+
+> The package is published under an npm scope (`@whdrnr2583/`) because the
+> bare `token-meter` name collides with an existing similar name on npm. The
+> CLI binary is still called `token-meter` after install.
 
 ### Register the MCP server with Claude Code
 
 ```sh
-claude mcp add token-meter -- npx -y token-meter mcp
+claude mcp add token-meter -- npx -y @whdrnr2583/token-meter mcp
 ```
 
 Then ask Claude Code: *"Use token-meter to show my recent sessions"* or
