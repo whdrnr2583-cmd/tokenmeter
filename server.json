@@ -1,0 +1,19 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "name": "io.github.whdrnr2583-cmd/token-meter",
+  "description": "Local-first dashboard + MCP server for Claude Code and Codex token usage. Per-MCP/tool breakdown, session drill-down, hourly stats, USD-equivalent cost.",
+  "version": "0.1.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@whdrnr2583/token-meter",
+      "version": "0.1.1",
+      "transport": { "type": "stdio" }
+    }
+  ],
+  "repository": {
+    "url": "https://github.com/whdrnr2583-cmd/tokenmeter",
+    "source": "github"
+  },
+  "websiteUrl": "https://token-meter.dev"
+}

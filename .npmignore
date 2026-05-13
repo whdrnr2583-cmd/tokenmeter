@@ -18,6 +18,9 @@ STRATEGY.md
 # Workspace (operational notes, kakao msgs, PMF gate, interviews)
 _workspace
 
+# MCP Registry submission file (not needed in npm tarball)
+server.json
+
 # Dev config
 tsconfig.json
 .gitignore
