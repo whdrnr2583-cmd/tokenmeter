@@ -15,6 +15,9 @@ DEPLOYMENT.md
 RELEASE_RUNBOOK.md
 STRATEGY.md
 
+# Workspace (operational notes, kakao msgs, PMF gate, interviews)
+_workspace
+
 # Dev config
 tsconfig.json
 .gitignore

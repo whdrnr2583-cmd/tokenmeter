@@ -635,6 +635,36 @@ github.com/<owner>/token-meter-api   ← private (라이선스 API, CF Workers +
 
 ---
 
+## D-029. v0.1.0 publish 실전 박제 — npm scope + token-meter.dev + Pages 수동 deploy + Tally + 결제 wiring 보류
+**날짜**: 2026-05-13
+**결정**:
+- **npm 패키지**: `@whdrnr2583/token-meter` (scoped) — bare `token-meter` 충돌 (similar-name vs 기존 `tokenmeter`). bin alias `token-meter` (npm scope strip 자동 매핑)
+- **GitHub**: `whdrnr2583-cmd/tokenmeter` (public, MIT)
+- **도메인**: `token-meter.dev` (CF Registrar $14/yr 추정, Year 1 인프라비 박제 갱신). 1순위 `tokenmeter.dev` 선점됨 (D-022 번복 트리거 발동)
+- **랜딩**: CF Pages `tokenmeter-site` → `https://token-meter.dev` (build output: `infra/site`)
+- **CF Pages 자동 배포 X**: `wrangler pages deploy` 수동만. Connect to Git 비활성. PMF 게이트 대비 명시적 control 우선
+- **베타 폼**: Tally 임베드 `https://tally.so/r/2E16vD` (Self email notifications ON, Free tier 충분). CF Workers + D1 wiring 보류 (PMF 게이트 위반)
+- **Email Routing**: `hello@token-meter.dev` → `whdrnr2583@gmail.com` (CF 무료, MX 자동)
+- **bin 필드 자동 제거 경고**: scoped 패키지에서 unscoped bin key 자동 제거됨. npm이 패키지 이름 scope strip해서 binary 자동 매핑 (`token-meter` 명령 정상 작동)
+- **결제 wiring (Polar/Workers/D1) M3 보류**: PMF 게이트 (알파 5 / 본인 dogfood 1개월 / 카톡 50 / 인터뷰 10) 통과 후만 진입
+
+**박제 학습 가치**:
+1. **npm `view <name>` 404는 정확 일치만 검증**. punycode normalize 충돌 (`tokenmeter` ↔ `token-meter`)은 publish 403에서만 발견. 사전 verify 강화 필요: 변형 5개 (`tokenmeter`, `token-meter`, `tokenmeter-cli`, `tokenpulse`, `aimeter`) 동시 조회 + 실패 대비 scope fallback 사전 준비
+2. **CF Registrar 1순위 도메인 선점 빈도 높음** (`.dev` 인기). 백업 후보 5개 + 가격대 사전 정리 의무. D-022 박제 갱신 트리거 발동 시 즉시 옵션 4-5개 verify
+3. **CF Pages "Workers & Pages" 통합 UI 함정**: dashboard "Create" 누르면 Workers default 진입. Pages는 "Looking to deploy Pages? Get started" 별도 링크 또는 wrangler CLI `pages deploy`로 우회 가능 (더 빠름)
+4. **wrangler 4.x `pages domain add` 명령 제거됨**. Dashboard GUI로만 커스텀 도메인 추가 가능 (v3까지 있던 CLI 명령 deprecated)
+5. **CF email obfuscation default ON**: `<a href="mailto:...">` 평문 노출되지 X. JavaScript로 자동 deobfuscate, 사용자 클릭 시 정상 mailto. 평문 원하면 CF Scrape Shield 설정에서 끄기 가능 — 보안 차원에서 ON 유지 정합
+
+**번복 트리거**:
+- PMF 게이트 통과 (결제 5건 + 인터뷰 5건 누적) → Connect to Git 자동 배포 + Pro+ 게이트 검증 가속
+- npm bin 매핑 실패 보고 (`token-meter` 명령 누락) → v0.1.1 패치 (bin 필드 단일 string으로 변경)
+- Tally Free tier limit 도달 (월 100 응답 초과) → Tally Pro 또는 자체 폼 (CF Workers wiring 진입 결정)
+- 도메인 가용성 캐시 stale (RUNBOOK 갱신 누락) → 6개월마다 1순위 후보 자동 verify
+
+**관련 박제**: D-001 Polar / D-005 로컬 우선 / D-021 stop-loss / D-022 제품명 / D-023 인프라 분리 / D-025 현실 KPI / D-027 dedup
+
+---
+
 ## 향후 결정 보류 항목
 
 | 번호 | 항목 | 결정 시점 |
