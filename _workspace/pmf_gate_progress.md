@@ -55,6 +55,17 @@ ELSE:
 
 ## 마일스톤 회고 (월말)
 
+## 2026-05-20 W1 dogfood 마감 시 작업 (예약)
+
+- [ ] dogfood 7일 박제 검토 (`dogfood_daily.md` 표)
+- [ ] **awesome-mcp-servers PR 재진행** (`listing_drafts.md` §단계 2 개정 — Glama 사전 등재 의무)
+  - [ ] Glama.ai 등재 + score badge URL 받기 (30분-1시간)
+  - [ ] fork sync (whdrnr2583-cmd/awesome-mcp-servers)
+  - [ ] Monitoring 섹션 정확한 위치 + badge 포함 entry
+  - [ ] cross-fork PR 생성 (직접 URL `punkpeye/awesome-mcp-servers/compare/main...whdrnr2583-cmd:...`)
+- [ ] 카톡 알림 1차 발송 (RUNBOOK §T+10, `kakao_announcement_v1.md`)
+- [ ] ICP 인터뷰 5명 콜드 DM 시작 (`icp_interview_template.md`)
+
 ### 1개월 회고 (~2026-06-13)
 - [ ] dogfood 25+ 일 통과?
 - [ ] 인터뷰 5+ 누적?

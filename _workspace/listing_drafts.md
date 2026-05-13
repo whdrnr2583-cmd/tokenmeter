@@ -114,7 +114,66 @@ mcp-publisher publish
 
 ---
 
-## 단계 2: awesome-mcp-servers PR (15분)
+## ⚠️ 2026-05-13 1차 시도 실패 — 박제
+
+첫 시도 실수 2건:
+1. **fork 내 PR**: GitHub UI에서 base를 사용자 fork 자체로 설정 (`whdrnr2583-cmd/awesome-mcp-servers:main`). upstream punkpeye가 못 봄. → 닫음
+2. **cross-fork PR 위치**: Ctrl+F Monitoring 검색을 못 해서 Social Media 섹션 (VK ↔ LinkedIn) 사이에 entry 추가됨. punkpeye 자동 bot이 `missing-glama` label 부착. → 닫음
+
+**박제 학습 (D-030 권고)**:
+- punkpeye/awesome-mcp-servers는 **Glama.ai 사전 등재 + score badge 의무** (~2024 정책). 단순 entry PR은 자동 `missing-glama` label + stale
+- koreanpulse PR #5893 (5/5 open, 8일 stale) 사례가 증거
+- 진입 순서: **Glama.ai 등재 → score badge URL 받기 → README entry에 badge 포함 → 정확한 위치 (Monitoring) → cross-fork PR**
+
+## 단계 2 (개정): 5/20 W1 dogfood 후 일괄 재진행
+
+### 2-A. Glama.ai 등재 (30분-1시간)
+
+1. https://glama.ai 접속
+2. 본인 GitHub 계정으로 로그인
+3. Search 또는 Add → `@whdrnr2583/token-meter` 또는 GitHub repo URL 입력
+4. Glama가 자동 indexing — npm 메타데이터 + GitHub README 분석
+5. 또는 manual submission form (있다면) 작성
+6. 등재 후 **score badge URL** 받음 (보통 `https://glama.ai/mcp/servers/@whdrnr2583/token-meter/badge`)
+
+### 2-B. README entry 갱신 (Glama badge 포함)
+
+기존 entry:
+```markdown
+- [whdrnr2583-cmd/tokenmeter](https://github.com/whdrnr2583-cmd/tokenmeter) 📇 🏠 - Local-first dashboard + MCP server for Claude Code and Codex token usage.
+```
+
+Glama badge 포함:
+```markdown
+- [whdrnr2583-cmd/tokenmeter](https://github.com/whdrnr2583-cmd/tokenmeter) [![smithery badge](https://glama.ai/mcp/servers/@whdrnr2583/token-meter/badge)](https://glama.ai/mcp/servers/@whdrnr2583/token-meter) 📇 🏠 - Local-first dashboard + MCP server for Claude Code and Codex token usage.
+```
+
+(다른 entries의 badge 형식 cross-check 후 최종 결정)
+
+### 2-C. Fork sync (재진입 전)
+
+1. https://github.com/whdrnr2583-cmd/awesome-mcp-servers 접속
+2. "Sync fork" 클릭 → upstream 최신 main 반영
+3. (필요 시 기존 branch `whdrnr2583-cmd-patch-1` 삭제 후 새 branch)
+
+### 2-D. 정확한 위치에 추가 + cross-fork PR
+
+GitHub UI에서 fork의 README 편집:
+1. Ctrl+F `<a name="monitoring">` 검색 (📊 Monitoring 섹션)
+2. 알파벳 위치에 entry 추가 (2-B의 갱신된 라인)
+3. Commit → **Create a new branch + PR**
+4. PR 생성 시 **반드시 cross-fork**:
+   - 직접 URL: `https://github.com/punkpeye/awesome-mcp-servers/compare/main...whdrnr2583-cmd:awesome-mcp-servers:<new-branch>`
+   - 또는 "compare across forks" 링크 → base: punkpeye / head: whdrnr2583-cmd 명시
+5. PR title 정확히: `Add token-meter — Claude Code + Codex usage observability`
+6. PR body는 위 §단계 2-C 영문 (Description 비우지 말 것)
+
+### 2-E. PR 모니터링
+
+- `missing-glama` label이 자동 제거되거나 (badge 포함 시), 또는 maintainer 직접 review
+- merge 또는 추가 요청 (예: 카테고리 이동, badge 수정)
+
+## 단계 2 박제 (1차 실패 5/13, 재진행 5/20)
 
 ### 2-A. Repo Fork
 
