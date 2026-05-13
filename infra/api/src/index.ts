@@ -16,7 +16,7 @@ app.use(
   cors({
     origin: (origin) => {
       if (!origin) return '*';
-      const allow = ['https://tokenmeter.dev', 'http://localhost:8765', 'http://127.0.0.1:8765'];
+      const allow = ['https://token-meter.dev', 'http://localhost:8765', 'http://127.0.0.1:8765'];
       return allow.includes(origin) ? origin : null;
     },
   }),
