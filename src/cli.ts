@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { migrate, openDb } from './db.js';
 import { ingestAll } from './ingest.js';
 import { byMcp, byModel, byProject, daily, overview } from './stats.js';
+import { clampDaysToEntitlement, getEntitlement } from './license.js';
 
 const USAGE = `Usage:
   token-meter ingest [--force]    Scan JSONL → SQLite
@@ -142,7 +143,20 @@ async function main(): Promise<void> {
 
   if (cmd === 'stats' || cmd === undefined) {
     const daysArg = rest.find((s) => /^\d+$/.test(s));
-    const days = daysArg ? Number.parseInt(daysArg, 10) : 30;
+    const requested = daysArg ? Number.parseInt(daysArg, 10) : 30;
+    const ent = getEntitlement();
+    const days = clampDaysToEntitlement(requested, ent.tier);
+    if (days < requested) {
+      const tierLabel = ent.tier === 'free' ? 'Free' : 'Pro';
+      const nextTip =
+        ent.tier === 'free'
+          ? 'Pro shows 30 days, Pro+ shows everything.'
+          : 'Pro+ shows everything.';
+      console.error(
+        `[${tierLabel} tier] history clamped to ${days} days (requested ${requested}). ` +
+          `${nextTip} See https://token-meter.dev#pricing`,
+      );
+    }
     printOverview(db, days);
     printDaily(db, days);
     printByModel(db, days);

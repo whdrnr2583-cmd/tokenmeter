@@ -5,6 +5,31 @@ All notable changes to Token Meter.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] — Unreleased
+
+### Added
+- **License-tier gating scaffold** (`src/license.ts`). Three tiers: `free`,
+  `pro`, `pro_plus`. Resolves entitlement from `TOKEN_METER_LICENSE` env or
+  `~/.tokenmeter/license.json`. **Disabled by default during the beta** —
+  set `TOKEN_METER_GATING=1` to test gating locally.
+- Free vs Pro caps:
+  - **History**: 7 days (Free) / 30 days (Pro) / unbounded (Pro+).
+  - **Smart alert rules**: 1 (Free) / unlimited (Pro+).
+  - **Alert action types**: `notify.desktop` (Free) / desktop + webhook +
+    email (Pro+).
+  - **Session drill-down API** (`/api/sessions*`): Pro+ only (HTTP 402 to
+    Free callers).
+- CLI emits a one-line warning when `stats <days>` is clamped by the
+  active tier.
+
+### Notes
+- Gating is dormant in this release. With `TOKEN_METER_GATING` unset (the
+  default), every caller resolves to Pro+ and existing behaviour is
+  preserved. The flag flips to default-on once Polar checkout +
+  webhook-driven license issuance lands (D-031 γ).
+
+---
+
 ## [0.1.2] — 2026-05-14
 
 ### Fixed

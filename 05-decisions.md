@@ -705,7 +705,7 @@ github.com/<owner>/token-meter-api   ← private (라이선스 API, CF Workers +
 **날짜**: 2026-05-14
 **결정**: 사용자 명시 정책 갱신. Token Meter는 다음 5건 영구 적용.
 
-1. **Outbound 채널 전면 차단**: 카톡 알림 / Reddit DM (r/ClaudeAI · r/Codex · r/LocalLLaMA) / ICP 인터뷰 cold DM / Multiplier DM / HN Show / 본인 X / Substack / 메일 magazine 등 **모든 발신 마케팅·리서치 채널 차단**. 자체 발신 0.
+1. **Outbound 채널 전면 차단** (**Gmail email + Hacker News 예외**): 카톡 알림 / Reddit DM (r/ClaudeAI · r/Codex · r/LocalLLaMA) / ICP 인터뷰 cold DM / Multiplier DM / LinkedIn / Substack / Twitter / Discord / Slack / Smartkarma / 메일 magazine 등 **모든 social·platform 발신 마케팅·리서치 채널 차단**. 자체 발신 0. **단 (a) Gmail email (`hello@token-meter.dev` Reply-to) 회신 + (b) Hacker News (Show HN, 워밍, 댓글)는 허용** — 2026-05-14 사용자 글로벌 outbound rule [[feedback_gmail_only_outbound]] 정합 갱신.
 
 2. **Gmail-only inbound**: `hello@token-meter.dev` → `whdrnr2583@gmail.com` Email Routing 답신 + Tally `tally.so/r/2E16vD` 자발적 입력만 수용.
 

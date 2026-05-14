@@ -29,6 +29,13 @@ import {
   sessionTools,
   topSessions,
 } from './sessions.js';
+import {
+  clampDaysToEntitlement,
+  FREE_ACTION_TYPES,
+  FREE_RULE_CAP,
+  getEntitlement,
+  isProTier,
+} from './license.js';
 
 // Runtime enum guards (TS types alone don't protect against malicious JSON).
 const VALID_METRICS = new Set<RuleMetric>([
@@ -104,33 +111,48 @@ export async function startDashboard(): Promise<void> {
 
   await app.register(fastifyStatic, { root: PUBLIC_DIR, prefix: '/' });
 
+  // Helper: parse ?days= and clamp it to the caller's tier in one step.
+  function daysFromQuery(q: unknown): number {
+    const requested = parseDays(q);
+    const ent = getEntitlement();
+    return clampDaysToEntitlement(requested, ent.tier);
+  }
+
+  function paywall(feature: string): { error: string; feature: string; message: string } {
+    return {
+      error: 'pro_required',
+      feature,
+      message: `${feature} is a Pro feature. See https://token-meter.dev#pricing`,
+    };
+  }
+
   app.get('/api/overview', async (req) => {
-    const days = parseDays((req.query as Record<string, unknown>).days);
+    const days = daysFromQuery((req.query as Record<string, unknown>).days);
     return { days, ...overview(db, days) };
   });
 
   app.get('/api/daily', async (req) => {
-    const days = parseDays((req.query as Record<string, unknown>).days);
+    const days = daysFromQuery((req.query as Record<string, unknown>).days);
     return { days, rows: daily(db, days) };
   });
 
   app.get('/api/models', async (req) => {
-    const days = parseDays((req.query as Record<string, unknown>).days);
+    const days = daysFromQuery((req.query as Record<string, unknown>).days);
     return { days, rows: byModel(db, days) };
   });
 
   app.get('/api/projects', async (req) => {
-    const days = parseDays((req.query as Record<string, unknown>).days);
+    const days = daysFromQuery((req.query as Record<string, unknown>).days);
     return { days, rows: byProject(db, days, 20) };
   });
 
   app.get('/api/mcp', async (req) => {
-    const days = parseDays((req.query as Record<string, unknown>).days);
+    const days = daysFromQuery((req.query as Record<string, unknown>).days);
     return { days, rows: byMcp(db, days, 30) };
   });
 
   app.get('/api/hourly', async (req) => {
-    const days = parseDays((req.query as Record<string, unknown>).days);
+    const days = daysFromQuery((req.query as Record<string, unknown>).days);
     return { days, rows: byHour(db, days) };
   });
 
@@ -146,6 +168,19 @@ export async function startDashboard(): Promise<void> {
     const body = (req.body ?? {}) as Partial<RuleInput>;
     const err = validateRuleFields(body, true);
     if (err) return reply.code(400).send({ error: 'invalid_field', field: err.field });
+
+    // Free-tier gates: action_type and rule count.
+    const ent = getEntitlement();
+    if (!isProTier(ent.tier)) {
+      if (body.action_type && !FREE_ACTION_TYPES.has(body.action_type)) {
+        return reply.code(402).send(paywall(`action_type:${body.action_type}`));
+      }
+      const existing = listRules(db).length;
+      if (existing >= FREE_RULE_CAP) {
+        return reply.code(402).send(paywall(`rule_count_over_${FREE_RULE_CAP}`));
+      }
+    }
+
     const rule = createRule(db, {
       name: String(body.name).slice(0, 80),
       enabled: body.enabled !== false,
@@ -165,6 +200,13 @@ export async function startDashboard(): Promise<void> {
     const body = (req.body ?? {}) as Partial<RuleInput>;
     const err = validateRuleFields(body, false);
     if (err) return reply.code(400).send({ error: 'invalid_field', field: err.field });
+
+    // Free-tier guard: prevent upgrading an existing rule to a Pro action type.
+    const ent = getEntitlement();
+    if (!isProTier(ent.tier) && body.action_type && !FREE_ACTION_TYPES.has(body.action_type)) {
+      return reply.code(402).send(paywall(`action_type:${body.action_type}`));
+    }
+
     const rule = updateRule(db, id, body);
     if (!rule) return reply.code(404).send({ error: 'not_found' });
     return rule;
@@ -210,15 +252,19 @@ export async function startDashboard(): Promise<void> {
 
   // ---------- Session drill-down (Pro feature, ungated in dev) ----------
 
-  app.get('/api/sessions', async (req) => {
+  app.get('/api/sessions', async (req, reply) => {
+    const ent = getEntitlement();
+    if (!isProTier(ent.tier)) return reply.code(402).send(paywall('session_drilldown'));
     const q = req.query as Record<string, unknown>;
-    const days = parseDays(q.days);
+    const days = daysFromQuery(q.days);
     const limit = Math.min(100, Math.max(1, Number.parseInt(String(q.limit ?? '20'), 10) || 20));
     const project = typeof q.project === 'string' && q.project.length > 0 ? q.project : null;
     return { days, rows: topSessions(db, days, limit, project) };
   });
 
   app.get('/api/sessions/:id', async (req, reply) => {
+    const ent = getEntitlement();
+    if (!isProTier(ent.tier)) return reply.code(402).send(paywall('session_drilldown'));
     const id = decodeURIComponent((req.params as { id: string }).id);
     const overview = sessionOverview(db, id);
     if (!overview) return reply.code(404).send({ error: 'not_found' });
@@ -226,13 +272,17 @@ export async function startDashboard(): Promise<void> {
   });
 
   app.get('/api/sessions/:id/messages', async (req, reply) => {
+    const ent = getEntitlement();
+    if (!isProTier(ent.tier)) return reply.code(402).send(paywall('session_drilldown'));
     const id = decodeURIComponent((req.params as { id: string }).id);
     const overview = sessionOverview(db, id);
     if (!overview) return reply.code(404).send({ error: 'not_found' });
     return { rows: sessionMessages(db, id) };
   });
 
-  app.get('/api/sessions/:id/tools', async (req) => {
+  app.get('/api/sessions/:id/tools', async (req, reply) => {
+    const ent = getEntitlement();
+    if (!isProTier(ent.tier)) return reply.code(402).send(paywall('session_drilldown'));
     const id = decodeURIComponent((req.params as { id: string }).id);
     return {
       items: sessionTools(db, id),
@@ -241,7 +291,7 @@ export async function startDashboard(): Promise<void> {
   });
 
   app.get('/api/sources', async (req) => {
-    const days = parseDays((req.query as Record<string, unknown>).days);
+    const days = daysFromQuery((req.query as Record<string, unknown>).days);
     const since = Date.now() - days * 86_400_000;
     const rows = db
       .prepare(
