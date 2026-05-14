@@ -34,7 +34,7 @@ npx -y @whdrnr2583/token-meter stats 7
 | 날짜 | npm DL | GitHub ★ | Tally | Gmail | dogfood OK | 메모 |
 |---|---|---|---|---|---|---|
 | 5/13 | 0 | 0 | ? | ? | publish | v0.1.0→0.1.1 (MCP Registry mcpName) |
-| 5/14 | 0 | 0 | ? | ? | ✓ | T+24h 회고. typecheck/test/audit/build all green |
+| 5/14 | 0 | 0 | ? | ? | ✓ | T+24h 회고 + v0.1.2 publish (serve subcommand fix + --version/--help). npx clean 검증 OK |
 | 5/15 | _ | _ | _ | _ | _ | |
 | 5/16 | _ | _ | _ | _ | _ | |
 | 5/17 | _ | _ | _ | _ | _ | |
