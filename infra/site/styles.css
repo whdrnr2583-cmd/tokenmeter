@@ -104,6 +104,20 @@ section { padding: 80px 32px; max-width: 1100px; margin: 0 auto; }
 
 .hint { color: var(--muted); font-size: 13px; margin: 0; }
 
+.subscribe-btn {
+  display: inline-block;
+  background: var(--accent);
+  color: #0b1622;
+  padding: 10px 22px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 15px;
+  text-decoration: none;
+  margin-bottom: 10px;
+  transition: background 0.15s;
+}
+.subscribe-btn:hover { background: var(--accent-2); text-decoration: none; }
+
 .code {
   background: var(--panel);
   border: 1px solid var(--border);

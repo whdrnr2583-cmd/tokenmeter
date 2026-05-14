@@ -8,7 +8,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "token-meter"
-database_id = "REPLACE_WITH_D1_ID"
+database_id = "a9b2b37d-6909-45e0-b984-b00bf569b423"
 
 # Secrets (do NOT commit values):
 #   wrangler secret put POLAR_WEBHOOK_SECRET
