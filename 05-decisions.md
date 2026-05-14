@@ -751,6 +751,35 @@ github.com/<owner>/token-meter-api   ← private (라이선스 API, CF Workers +
 
 ---
 
+## D-032. Polar webhook 시그너처 검증 — Polar는 Standard Webhooks와 다름
+**날짜**: 2026-05-15
+**결정**: Polar webhook signature는 표준 Standard Webhooks spec과 두 군데 다르다. 우리 verify 로직은 manual implementation 사용. `standardwebhooks` npm 패키지 사용 금지.
+
+**진단 (5/14 ~ 5/15 e2e 디버깅, 4 variant 동시 시도로 발견)**:
+
+1. **HMAC key derivation**: Polar는 secret 전체 (53자, `polar_whs_` prefix **포함**)를 **raw UTF-8 bytes** 로 HMAC key 사용. base64 decode **안 함**.
+   - Standard Webhooks 표준: `whsec_<base64>` prefix strip 후 base64 decode → ~32 bytes 키
+   - Polar 실제: secret string `polar_whs_<43chars>` 전체 53 bytes를 raw UTF-8로 키
+   - 검증: 4 variant 동시 시도 (`base64_stripped`, `raw_stripped`, `raw_full`, `base64_full`) → 오직 `raw_full` 만 매칭
+
+2. **Event id 위치**: Polar는 event id를 body에 넣지 X. `webhook-id` **HTTP header**에 emit. 우리 코드가 `evt.id` (body)를 찾으면 항상 미존재 → 401 통과 후 400 missing_fields.
+
+**구현 (infra/api/src/index.ts)**:
+- `verifyPolarSignature`: `new TextEncoder().encode(secret)` (53 bytes)를 HMAC-SHA256 key로 importKey. signed payload = `${wid}.${wts}.${rawBody}`. expected base64(HMAC) vs `webhook-signature` header의 `v1,<sig>` token timing-safe 비교
+- `eventId = wid` (header from `c.req.header('webhook-id')`) 로 webhook_events.id INSERT
+
+**금지**:
+- `standardwebhooks` npm 패키지 사용 (Polar용 미작동, 1.x 의존성 제거됨)
+- secret을 base64 decode 후 HMAC key 사용 (Standard Webhooks 표준이지만 Polar 미적용)
+
+**번복 트리거**:
+- Polar가 향후 spec에 정합 (base64 key, body id) → 우리 코드 갱신
+- Polar API 응답 헤더에 spec 변경 알림 명시 → 모니터링
+
+**관련 박제**: [[D-001]] Polar.sh / [[D-031]] outbound 차단 / [[feedback_ls_denied_polar_pivot]] (Standard Webhooks 시그너처 박제 — 본 진단으로 갱신).
+
+---
+
 ## 향후 결정 보류 항목
 
 | 번호 | 항목 | 결정 시점 |

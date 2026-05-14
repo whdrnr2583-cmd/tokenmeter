@@ -219,7 +219,8 @@ Once steps 1-7 verify end-to-end:
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Polar webhook → 401 invalid_signature | Wrong `POLAR_WEBHOOK_SECRET` set on worker | `wrangler secret put POLAR_WEBHOOK_SECRET` with the value from Polar dashboard |
+| Polar webhook → 401 invalid_signature | (a) Wrong `POLAR_WEBHOOK_SECRET` value on worker, or (b) verify implementation diverges from Polar's actual HMAC convention | (a) `wrangler secret put POLAR_WEBHOOK_SECRET` with the value from Polar dashboard, then `wrangler deploy`. (b) See D-032 — Polar uses **full secret raw UTF-8 bytes** as HMAC key (not base64-decoded post-prefix). The `standardwebhooks` npm package does NOT match Polar; use the manual implementation in `infra/api/src/index.ts`. |
+| Polar webhook → 200 sig OK but 400 missing_fields | Event id read from body, but Polar puts it in the `webhook-id` header | Read `eventId = c.req.header('webhook-id')`, not `evt.id`. Fixed in D-032. |
 | Webhook fires but no row in `licenses` | Product name doesn't include "Plus" or "Team" and isn't `Pro` — handler defaults to `pro` regardless | Read `webhook_events.payload` in D1, confirm product structure |
 | `activate` returns network error | Domain not bound yet, or `TOKEN_METER_API_BASE` pointing at wrong URL | `curl https://api.token-meter.dev/v1/health` first |
 | Email never arrives | Resend domain not verified, or `RESEND_API_KEY` missing | Check Resend dashboard "Emails" log; if 403, redo step 2 |

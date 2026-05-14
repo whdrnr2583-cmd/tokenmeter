@@ -30,7 +30,9 @@ export interface Entitlement {
 
 const GATING_ENV = 'TOKEN_METER_GATING';
 const LICENSE_ENV = 'TOKEN_METER_LICENSE';
-const CONFIG_PATH = join(homedir(), '.tokenmeter', 'license.json');
+function getConfigPath(): string {
+  return join(homedir(), '.tokenmeter', 'license.json');
+}
 
 const API_BASE_DEFAULT = 'https://api.token-meter.dev';
 function getApiBase(): string {
@@ -81,7 +83,7 @@ export function getEntitlement(): Entitlement {
   }
 
   try {
-    const raw = readFileSync(CONFIG_PATH, 'utf8');
+    const raw = readFileSync(getConfigPath(), 'utf8');
     const parsed = JSON.parse(raw) as {
       tier?: string;
       valid_until_ms?: number;
@@ -201,10 +203,11 @@ export async function activateLicense(
   }
   const tier: Tier =
     result.plan === 'pro_plus' || result.plan === 'team' ? 'pro_plus' : 'pro';
+  const path = getConfigPath();
   try {
-    mkdirSync(dirname(CONFIG_PATH), { recursive: true });
+    mkdirSync(dirname(path), { recursive: true });
     writeFileSync(
-      CONFIG_PATH,
+      path,
       JSON.stringify(
         {
           tier,
@@ -220,7 +223,7 @@ export async function activateLicense(
   } catch (err) {
     return {
       ok: false,
-      message: `Failed to write ${CONFIG_PATH}: ${(err as Error).message}`,
+      message: `Failed to write ${path}: ${(err as Error).message}`,
     };
   }
   const label = tier === 'pro_plus' ? 'Pro+' : 'Pro';

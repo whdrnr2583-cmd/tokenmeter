@@ -32,10 +32,13 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   re-verification. After that, the tier falls back to Free until the
   user runs `activate` again.
 - **`infra/api` worker hardening**:
-  - Polar webhook now verifies the **Standard Webhooks** signature
-    (`webhook-id` + `webhook-timestamp` + `webhook-signature`,
-    HMAC-SHA256 base64, ±5 min replay window), not just a raw HMAC of
-    the body.
+  - Polar webhook signature verify (HMAC-SHA256, ±5 min replay window
+    via `webhook-id` / `webhook-timestamp` / `webhook-signature`
+    headers). **Polar diverges from the Standard Webhooks reference**
+    in two places (D-032): HMAC key is the **full secret as raw UTF-8
+    bytes** (no base64 decode, `polar_whs_` prefix included); event id
+    comes from the `webhook-id` HTTP header (not the body). Verified
+    e2e on 2026-05-15.
   - License-issuance email shipped through **Resend** (`RESEND_API_KEY`
     + `RESEND_FROM` env). Email contains the key, the `activate`
     command, and the env-var fallback.

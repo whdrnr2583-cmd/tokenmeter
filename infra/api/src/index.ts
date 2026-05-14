@@ -93,12 +93,14 @@ app.post('/v1/license/verify', async (c) => {
 
 // ---------- Polar webhook (subscription lifecycle) ----------
 
-// Polar uses the Standard Webhooks spec:
-//   https://www.standardwebhooks.com/
-// Headers: webhook-id, webhook-timestamp, webhook-signature
-// Signature payload: `${webhookId}.${webhookTimestamp}.${body}`
-// HMAC-SHA256, base64-encoded. Header value is space-separated list of
-// "v1,<base64-sig>" tokens (one per active secret).
+// Polar uses the Standard Webhooks spec (https://www.standardwebhooks.com/).
+// Polar's secret is `polar_whs_<base64>` (Standard Webhooks reference uses
+// `whsec_<base64>`). The base64 portion is unpadded — `atob()` requires
+// padding, so we add `=` as needed and also normalise URL-safe variants
+// before decoding. The HMAC key bytes are the decoded base64 content.
+//
+// We implement verification by hand against the spec to avoid Workers-
+// vs-Node runtime mismatches that the standardwebhooks 1.x package hit.
 
 function timingSafeEqualStr(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -107,23 +109,6 @@ function timingSafeEqualStr(a: string, b: string): boolean {
     diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   }
   return diff === 0;
-}
-
-function decodeStandardWebhookSecret(secret: string): Uint8Array {
-  // Standard Webhooks uses `whsec_<base64>`. Polar uses `polar_whs_<base64>`.
-  // Strip whichever prefix is present, then try base64 decode; if that
-  // fails, fall back to raw UTF-8 bytes of the post-prefix string.
-  let stripped = secret;
-  if (stripped.startsWith('whsec_')) stripped = stripped.slice(6);
-  else if (stripped.startsWith('polar_whs_')) stripped = stripped.slice(10);
-  try {
-    const bin = atob(stripped);
-    const out = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-    return out;
-  } catch {
-    return new TextEncoder().encode(stripped);
-  }
 }
 
 async function verifyPolarSignature(
@@ -136,14 +121,24 @@ async function verifyPolarSignature(
   if (!secret || !webhookId || !webhookTimestamp || !webhookSignature) {
     return false;
   }
-  const ts = Number.parseInt(webhookTimestamp, 10);
-  if (!Number.isFinite(ts)) return false;
-  const nowSec = Math.floor(Date.now() / 1000);
-  if (Math.abs(nowSec - ts) > 5 * 60) return false; // 5min replay window
+  const tsNum = Number.parseInt(webhookTimestamp, 10);
+  if (!Number.isFinite(tsNum)) return false;
+  if (Math.abs(Math.floor(Date.now() / 1000) - tsNum) > 5 * 60) {
+    console.error(
+      `Polar sig fail: timestamp_out_of_window wts=${webhookTimestamp} now_sec=${Math.floor(Date.now() / 1000)}`,
+    );
+    return false;
+  }
 
-  const keyBytes = decodeStandardWebhookSecret(secret);
+  // Polar's actual key derivation (verified empirically 2026-05-14):
+  // **raw UTF-8 bytes of the full secret string** (prefix `polar_whs_`
+  // INCLUDED, no base64 decode). Diverges from Standard Webhooks reference
+  // which decodes the post-prefix base64. The standardwebhooks npm
+  // package therefore does NOT verify Polar payloads correctly.
+  const keyBytes = new TextEncoder().encode(secret);
   const signed = `${webhookId}.${webhookTimestamp}.${rawBody}`;
-  const key = await crypto.subtle.importKey(
+
+  const cryptoKey = await crypto.subtle.importKey(
     'raw',
     keyBytes,
     { name: 'HMAC', hash: 'SHA-256' },
@@ -152,19 +147,22 @@ async function verifyPolarSignature(
   );
   const macBuf = await crypto.subtle.sign(
     'HMAC',
-    key,
+    cryptoKey,
     new TextEncoder().encode(signed),
   );
-  const expectedB64 = btoa(
-    String.fromCharCode(...new Uint8Array(macBuf)),
-  );
+  const expected = btoa(String.fromCharCode(...new Uint8Array(macBuf)));
 
-  // Header value may contain multiple signatures separated by spaces.
+  // webhook-signature header is space-separated tokens: "v1,<sig> v1,<sig2>"
   const tokens = webhookSignature.split(' ').filter((t) => t.startsWith('v1,'));
   for (const token of tokens) {
-    const actual = token.slice(3);
-    if (timingSafeEqualStr(actual, expectedB64)) return true;
+    if (timingSafeEqualStr(token.slice(3), expected)) return true;
   }
+
+  console.error(
+    `Polar sig fail: hmac_mismatch secret_len=${secret.length} ` +
+      `expected=${expected.slice(0, 16)} actual_first=${(tokens[0] ?? '').slice(0, 18)} ` +
+      `wid=${webhookId} wts=${webhookTimestamp} signed_len=${signed.length}`,
+  );
   return false;
 }
 
@@ -252,13 +250,15 @@ app.post('/v1/polar/webhook', async (c) => {
   );
   if (!valid) return c.json({ ok: false, error: 'invalid_signature' }, 401);
 
-  let evt: { id?: string; type?: string; data?: Record<string, unknown> };
+  let evt: { type?: string; data?: Record<string, unknown> };
   try {
     evt = JSON.parse(raw);
   } catch {
     return c.json({ ok: false, error: 'invalid_json' }, 400);
   }
-  if (!evt.id || !evt.type) {
+  // Polar puts the event id on the `webhook-id` header, not the body.
+  const eventId = wid;
+  if (!eventId || !evt.type) {
     return c.json({ ok: false, error: 'missing_fields' }, 400);
   }
 
@@ -266,14 +266,14 @@ app.post('/v1/polar/webhook', async (c) => {
   const existing = await c.env.DB.prepare(
     `SELECT id FROM webhook_events WHERE id = ?`,
   )
-    .bind(evt.id)
+    .bind(eventId)
     .first();
   if (existing) return c.json({ ok: true, deduped: true });
 
   await c.env.DB.prepare(
     `INSERT INTO webhook_events (id, type, payload, received_at) VALUES (?, ?, ?, ?)`,
   )
-    .bind(evt.id, evt.type, raw, Date.now())
+    .bind(eventId, evt.type, raw, Date.now())
     .run();
 
   if (
@@ -353,7 +353,7 @@ app.post('/v1/polar/webhook', async (c) => {
   await c.env.DB.prepare(
     `UPDATE webhook_events SET processed_at=? WHERE id=?`,
   )
-    .bind(Date.now(), evt.id)
+    .bind(Date.now(), eventId)
     .run();
 
   return c.json({ ok: true });
