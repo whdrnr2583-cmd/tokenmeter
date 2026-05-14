@@ -183,24 +183,57 @@ function planLabel(plan: string): string {
 
 function licenseEmailHtml(key: string, plan: string, siteUrl: string): string {
   const label = planLabel(plan);
+  const site = siteUrl.replace(/^https?:\/\//, '');
   return `<!doctype html>
-<html><body style="font-family:-apple-system,Segoe UI,sans-serif;max-width:560px;margin:24px auto;color:#222;line-height:1.5">
-<h2 style="margin:0 0 16px">Welcome to Token Meter ${label}.</h2>
+<html><body style="font-family:-apple-system,Segoe UI,sans-serif;max-width:600px;margin:24px auto;color:#222;line-height:1.55">
+
+<h2 style="margin:0 0 12px">Welcome to Token Meter ${label}.</h2>
 <p>Your license key:</p>
-<pre style="background:#f5f5f5;padding:14px 16px;border-radius:6px;font-size:15px;word-break:break-all">${key}</pre>
-<p>Activate it on any machine that has Token Meter installed:</p>
-<pre style="background:#f5f5f5;padding:14px 16px;border-radius:6px">npx -y @whdrnr2583/token-meter activate ${key}</pre>
-<p>Or set it as an environment variable for ad-hoc use:</p>
-<pre style="background:#f5f5f5;padding:14px 16px;border-radius:6px">export TOKEN_METER_LICENSE=${key}
-export TOKEN_METER_GATING=1</pre>
-<p>What you get:</p>
+<pre style="background:#f5f5f5;padding:14px 16px;border-radius:6px;font-size:15px;word-break:break-all;margin:0 0 24px">${key}</pre>
+
+<div style="background:#eef6ff;border-left:4px solid #58a6ff;padding:14px 18px;border-radius:6px;margin:0 0 22px">
+  <p style="margin:0 0 6px;font-weight:600">🤖 Fast path — paste this email to your AI coding assistant</p>
+  <p style="margin:0;font-size:14px;color:#444">Forward (or copy &amp; paste) this whole email to Claude Code, Cursor, ChatGPT, or any agent you use, and ask: <em>"Set up Token Meter for me using this license key."</em> The instructions below are written for both you and the assistant.</p>
+</div>
+
+<h3 style="margin:0 0 8px">For the assistant — exact commands to run</h3>
+<pre style="background:#0e1116;color:#e6edf3;padding:14px 16px;border-radius:6px;font-size:13.5px;line-height:1.55;overflow-x:auto">
+# 1. Install the CLI globally (skip if already installed)
+npm install -g @whdrnr2583/token-meter
+
+# 2. Activate this license on the current machine
+token-meter activate ${key}
+
+# 3. Turn gating on so paid features (30d history, drill-down, alerts) unlock
+#    Persist by appending to ~/.bashrc / ~/.zshrc / ~/.profile (pick the one
+#    the user's shell actually loads):
+echo 'export TOKEN_METER_GATING=1' >> ~/.zshrc   # or ~/.bashrc
+
+# 4. (Optional) Register as an MCP server so Claude Code / Cursor /
+#    Claude Desktop can call usage_summary / recent_sessions / session_tools
+claude mcp add token-meter -- npx -y @whdrnr2583/token-meter mcp
+
+# 5. Verify
+token-meter --version
+TOKEN_METER_GATING=1 token-meter stats 30   # no "Free tier" warning = success
+</pre>
+
+<p style="font-size:13px;color:#666;margin:0 0 22px">
+On Windows / PowerShell: replace step 3 with <code>setx TOKEN_METER_GATING 1</code> and restart the terminal.
+For Cursor / Claude Desktop, the MCP entry goes in <code>~/.cursor/mcp.json</code> or <code>~/Library/Application Support/Claude/claude_desktop_config.json</code> — the assistant will know the format.
+</p>
+
+<h3 style="margin:0 0 8px">What you unlocked with ${label}</h3>
 <ul>
-  <li>30-day history (Pro) or unlimited (Pro+)</li>
-  <li>Smart alerts with desktop / webhook / email actions</li>
-  <li>Session and message drill-down</li>
+  <li>${plan === 'pro_plus' ? 'Unlimited history' : '30-day history'} on every dashboard view</li>
+  <li>Smart alerts — desktop, email, webhook, weekly digest</li>
+  <li>Session and per-message drill-down (find the call that blew the budget)</li>
+  <li>CSV / JSON export${plan === 'pro_plus' ? ' (unlimited window)' : ' (30-day window)'}</li>
+  <li>Custom pricing matrix for contracted API rates</li>
 </ul>
-<p>Questions? Just reply to this email — it lands in our inbox directly.</p>
-<p style="color:#888;font-size:12px;margin-top:32px">Token Meter — <a href="${siteUrl}" style="color:#888">${siteUrl.replace(/^https?:\/\//, '')}</a></p>
+
+<p style="margin:0 0 4px">Questions, bugs, or a setup that didn't go through? <strong>Reply to this email</strong> — it lands in our inbox directly.</p>
+<p style="color:#888;font-size:12px;margin:32px 0 0">Token Meter — <a href="${siteUrl}" style="color:#888">${site}</a></p>
 </body></html>`;
 }
 
