@@ -1,7 +1,10 @@
-# 카톡 1차 알림 메시지 (v1, 2026-05-13 publish day +0)
+# 카톡 1차 알림 메시지 (v1, 2026-05-13 publish day +0) — **🛑 LEGACY (2026-05-14)**
 
-> RUNBOOK §T+10 "조용한 첫 공개". 본인이 시점·채널 선택 후 발송.
-> **HN/Reddit/Twitter 영문 GTM 적극 push는 1-2주 dogfood + v0.1.x 패치 1-2회 후 (RUNBOOK 박제).**
+> **🛑 LEGACY 마킹 (2026-05-14)**: D-031 사용자 결정으로 카톡 알림 발송 자체 폐기. Outbound 채널 전면 차단.
+> 메시지 본문 보존 (재활성 시 reference). 발송 작업 진행 X.
+>
+> ~~RUNBOOK §T+10 "조용한 첫 공개". 본인이 시점·채널 선택 후 발송.~~ (D-031로 폐기)
+> ~~**HN/Reddit/Twitter 영문 GTM 적극 push는 1-2주 dogfood + v0.1.x 패치 1-2회 후 (RUNBOOK 박제).**~~ (D-031로 폐기)
 
 ---
 

@@ -665,6 +665,92 @@ github.com/<owner>/token-meter-api   ← private (라이선스 API, CF Workers +
 
 ---
 
+## D-030. v0.1.2 patch — serve subcommand 누락 fix + `--version`/`--help` flags
+**날짜**: 2026-05-14
+**결정**: dogfood T+24h에서 발견된 P0 버그 1건 + 관용 UX 1건 묶음 패치. PMF 게이트 정합 (신규 기능 X, README 약속 동작 회복).
+
+**버그 진단**:
+- README:15 / CHANGELOG[0.1.0]:28에 `npx @whdrnr2583/token-meter serve` 안내됨 (대시보드 http://localhost:8765)
+- 실제 `src/cli.ts`에 `serve` 서브커맨드 없음. `ingest` / `stats` / `mcp` 3종만.
+- 사용자가 README 첫 명령 따라가다 즉시 unknown command + exit 1
+- 원인: `src/server.ts`는 top-level `await app.listen` 단독 entry → `npm run serve` 스크립트로만 동작. npx / 글로벌 설치 사용자는 dashboard 못 띄움
+
+**수정 사항**:
+1. [src/server.ts](src/server.ts) — `export async function startDashboard()` 으로 wrap. `if (process.argv[1] === fileURLToPath(import.meta.url))` 가드로 직접 실행 (`npm run serve`) 시 auto-run 보존
+2. [src/cli.ts](src/cli.ts) — `serve` 서브커맨드 추가 (mcp 패턴 동일: `await import('./server.js').then(m => m.startDashboard())`)
+3. `--version` / `-v` flag (package.json runtime read) + `--help` / `-h` / `help` flag (exit 0)
+4. USAGE 상수화
+
+**검증**:
+- typecheck / test (18/18) / audit (8 invariants) / build all green
+- `node dist/cli.js --help` exit 0, unknown command exit 1
+- `node dist/cli.js --version` → `0.1.2`
+- `node dist/cli.js serve` → `Token Meter dashboard ready at http://127.0.0.1:8765`
+- npx clean 환경 (`cd /Desktop && npx -y @whdrnr2583/token-meter@0.1.2 --version`) → `0.1.2` + `--help` serve 라인 노출 확인
+
+**npm publish 박제 학습** (D-029 갱신):
+- 5/13 publish 후 npm 로그인 세션 만료. `npm whoami` → E401 → `npm publish` → E404 disguised permission error
+- 해결: `npm login` 재인증 후 OTP prompt 정상 작동. publish 성공 `+ @whdrnr2583/token-meter@0.1.2` (2026-05-14 11:54 UTC)
+- bin 경고 (`bin[token-meter] script name dist/cli.js was invalid and removed`)는 D-029 cosmetic 재발생. scope strip 자동 매핑으로 `token-meter` 명령 정상 작동
+
+**Git/CI 박제**:
+- commit `ce81b37` fix + `d1d2a82` dogfood T+24h + `3f8e2c5` v0.1.2 dogfood 갱신 + `838616e` 30d retro
+- `git tag v0.1.2 ce81b37` + `git push origin v0.1.2` → release.yml CI 멱등 가드 (npm view skip) 동작 추정 (27s run)
+
+**번복 트리거**: v0.1.2의 `serve` 동작 실패 보고 → v0.1.3 패치. `--help` exit code 보고 → 조정.
+
+---
+
+## D-031. 사용자 outbound 채널 영구 차단 + PMF 게이트 5조건 우회 + LLM Opus 의견 우선
+**날짜**: 2026-05-14
+**결정**: 사용자 명시 정책 갱신. Token Meter는 다음 5건 영구 적용.
+
+1. **Outbound 채널 전면 차단**: 카톡 알림 / Reddit DM (r/ClaudeAI · r/Codex · r/LocalLLaMA) / ICP 인터뷰 cold DM / Multiplier DM / HN Show / 본인 X / Substack / 메일 magazine 등 **모든 발신 마케팅·리서치 채널 차단**. 자체 발신 0.
+
+2. **Gmail-only inbound**: `hello@token-meter.dev` → `whdrnr2583@gmail.com` Email Routing 답신 + Tally `tally.so/r/2E16vD` 자발적 입력만 수용.
+
+3. **PMF 게이트 5조건 명시 우회**: [[D-020]] / [[D-029]] 박제의 "알파 5명 / dogfood 1개월 / 카톡 50명 / ICP 인터뷰 10명 / Y1 ARR base $2k" 게이트는 **결제 wiring·Pro/Pro+ 기능 진입 차단 조건으로 폐기**. 본인 dogfood만 측정 의미 유지 (자기 검증 가치).
+
+4. **외부 의견 < LLM Opus 의견**: GPT-5.5 Pro / 외부 LLM audit / 사용자 인터뷰 / 카톡 응답 등 **외부 의견 가치 부정**. 사용자 본인 + Opus 양자 결정만. `feedback_external_llm_review_selective_accept.md` 박제는 "selective accept"였으나 Token Meter에서 **외부 LLM 입력 자체 차단**.
+
+5. **빌드·실패 우선**: [[D-021]] 박제 강화. 외부 검증 기다리지 않고 출시 → 실 결제·DAU·버그 보고로 학습. PMF 게이트 통과 의존 X.
+
+**사용자 발화 (2026-05-14)**:
+> "남들 기다리는거 이제 그냥 넘어가자. 성공하는데 누구 허락받아야 하는게 말이 안된다 걍 부딫히고 줘터지면서 배울래. 그냥 gmail로 보내는거 제외하곤 아무것도 메시지를 보내지 않는다. 우리는 우리의 방식으로 나아간다. 남들 호응, 의견을 기다리는게 전문가 의견을 받는게 중요하다 해도 LLM opus의 의견보다 못하다. 인지해라."
+
+**근거**:
+- 사용자 본인 룰 갱신 (제3자 승인 우회 아님) → `feedback_rule_integrity.md` 정합
+- 콘텐츠 트랙 우선 + 글로벌 1인 영문 GTM 미검증 정합 ([[D-025]])
+- 1인 운영 시간 캡 보호 (인터뷰 / DM 응답 부담 0)
+
+**유지되는 stop-loss** (반드시 cross-check):
+- 본업·v18·us-advisor·koreanpulse 운영 차질 **0**
+- 시간 캡 주 **10시간**
+- 6개월 누적 매출 **$200 미달 + 200h 초과** 시 즉시 OSS 단독 유지 또는 폐기 ([[D-025]])
+- "이걸로 1억 벌겠다" 자기 기만 발화 시 즉시 본업·v18 회복 우선 모드 전환
+
+**번복 트리거**:
+- 본업·v18·us-advisor·koreanpulse 침범 발생 → 즉시 Token Meter 일시 중단
+- 6개월 매출 $200 + 200h 초과 → 폐기 or OSS 단독 모드
+- 사용자 본인 명시 갱신 (예: "ICP 인터뷰 받자" / "카톡 알림 보내자") → 그 시점에 본 박제 부분 갱신
+
+**폐기되는 박제·작업**:
+- `_workspace/pmf_gate_progress.md` 5조건 진행 매트릭스 → **LEGACY 마킹**
+- `_workspace/icp_interview_template.md` → **LEGACY 마킹** (코드·박제 보존, 진행 X)
+- `_workspace/kakao_announcement_v1.md` → **LEGACY 마킹**
+- `_workspace/listing_drafts.md` 등 외부 채널 deliverable → 유지하되 LEGACY 마킹
+
+**진입 가능 작업** (사용자 결정 후만):
+- α. Pro $5 4종 기능 명세 (`docs/pro-features.md`)
+- β. Pro 라이선스 게이팅 코드 (`src/license.ts`)
+- γ. 결제 wiring (Polar / CF Workers / D1)
+- δ. Pro+ $24 명세 + 가격 페이지 표시
+- ε. CF Pages 랜딩 가격 카피 갱신 (5$/24$ 가격 표시 + "Pro after beta" 정직 표현)
+
+**관련 박제**: [[D-021]] 빌드 우선 / [[D-025]] 현실 KPI / [[D-020]] / [[D-029]] PMF 게이트 (본 박제로 부분 폐기)
+
+---
+
 ## 향후 결정 보류 항목
 
 | 번호 | 항목 | 결정 시점 |
