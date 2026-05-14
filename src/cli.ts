@@ -1,7 +1,29 @@
 #!/usr/bin/env node
+import { readFileSync } from 'node:fs';
 import { migrate, openDb } from './db.js';
 import { ingestAll } from './ingest.js';
 import { byMcp, byModel, byProject, daily, overview } from './stats.js';
+
+const USAGE = `Usage:
+  token-meter ingest [--force]    Scan JSONL → SQLite
+  token-meter stats [days=30]     Print summary
+  token-meter serve               Run the dashboard at http://localhost:8765
+  token-meter mcp                 Run as an MCP server (stdio) for Claude Code / Cursor
+
+Flags:
+  -v, --version                   Print version
+  -h, --help                      Print this message`;
+
+function getVersion(): string {
+  try {
+    const pkg = JSON.parse(
+      readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+    ) as { version?: string };
+    return pkg.version ?? 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
 
 function fmtUsd(n: number): string {
   return `$${n.toFixed(4)}`;
@@ -76,6 +98,23 @@ function printByMcp(db: ReturnType<typeof openDb>, days: number): void {
 
 async function main(): Promise<void> {
   const [, , cmd, ...rest] = process.argv;
+
+  if (cmd === '--version' || cmd === '-v') {
+    console.log(getVersion());
+    return;
+  }
+  if (cmd === '--help' || cmd === '-h' || cmd === 'help') {
+    console.log(USAGE);
+    return;
+  }
+
+  if (cmd === 'serve') {
+    const { startDashboard } = await import('./server.js');
+    await startDashboard();
+    // startDashboard keeps the process alive via app.listen + setInterval.
+    return;
+  }
+
   const db = openDb();
   migrate(db);
 
@@ -112,10 +151,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.error(`Usage:
-  token-meter ingest [--force]    Scan JSONL → SQLite
-  token-meter stats [days=30]     Print summary
-  token-meter mcp                 Run as an MCP server (stdio) for Claude Code / Cursor`);
+  console.error(USAGE);
   process.exit(1);
 }
 

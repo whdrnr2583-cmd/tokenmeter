@@ -5,6 +5,20 @@ All notable changes to Token Meter.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] — 2026-05-14
+
+### Fixed
+- **`token-meter serve` subcommand was missing from the CLI**, even though the
+  README and v0.1.0 changelog promised a dashboard at `http://localhost:8765`.
+  The dashboard module existed (`src/server.ts`) but was only reachable via
+  `npm run serve` from a checkout — npx / global-install users hit
+  `Usage: ...` and exit 1. Now `token-meter serve` works end-to-end.
+
+### Added
+- `token-meter --version` / `-v` prints the installed version.
+- `token-meter --help` / `-h` / `help` prints usage and exits 0
+  (previously any unknown argument was treated as an error).
+
 ## [0.1.1] — 2026-05-13
 
 ### Added
