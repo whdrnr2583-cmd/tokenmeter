@@ -44,7 +44,9 @@ This wires together what's already in the repo:
    - Format: **Standard Webhooks** (Polar default).
    - Events: enable `subscription.created`, `subscription.active`,
      `subscription.canceled`, `subscription.revoked`.
-   - Save. Copy the **webhook signing secret** (starts with `whsec_`).
+   - Save. Copy the **webhook signing secret** (Polar prefix is
+     `polar_whs_<base64>`; some Polar UI variants emit the generic
+     `whsec_<base64>`. The worker handles both.).
 
 ---
 

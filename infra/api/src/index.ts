@@ -110,9 +110,12 @@ function timingSafeEqualStr(a: string, b: string): boolean {
 }
 
 function decodeStandardWebhookSecret(secret: string): Uint8Array {
-  // Standard Webhooks secrets start with `whsec_` and contain a
-  // base64-encoded key. Strip prefix; if not base64, fall back to raw bytes.
-  const stripped = secret.startsWith('whsec_') ? secret.slice(6) : secret;
+  // Standard Webhooks uses `whsec_<base64>`. Polar uses `polar_whs_<base64>`.
+  // Strip whichever prefix is present, then try base64 decode; if that
+  // fails, fall back to raw UTF-8 bytes of the post-prefix string.
+  let stripped = secret;
+  if (stripped.startsWith('whsec_')) stripped = stripped.slice(6);
+  else if (stripped.startsWith('polar_whs_')) stripped = stripped.slice(10);
   try {
     const bin = atob(stripped);
     const out = new Uint8Array(bin.length);
