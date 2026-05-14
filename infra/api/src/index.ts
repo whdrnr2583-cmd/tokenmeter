@@ -198,29 +198,19 @@ function licenseEmailHtml(key: string, plan: string, siteUrl: string): string {
 
 <h3 style="margin:0 0 8px">For the assistant — exact commands to run</h3>
 <pre style="background:#0e1116;color:#e6edf3;padding:14px 16px;border-radius:6px;font-size:13.5px;line-height:1.55;overflow-x:auto">
-# 1. Install the CLI globally (skip if already installed)
-npm install -g @whdrnr2583/token-meter
+# One-shot install + activate + persist gating env
+npx -y @whdrnr2583/token-meter setup ${key}
 
-# 2. Activate this license on the current machine
-token-meter activate ${key}
-
-# 3. Turn gating on so paid features (30d history, drill-down, alerts) unlock
-#    Persist by appending to ~/.bashrc / ~/.zshrc / ~/.profile (pick the one
-#    the user's shell actually loads):
-echo 'export TOKEN_METER_GATING=1' >> ~/.zshrc   # or ~/.bashrc
-
-# 4. (Optional) Register as an MCP server so Claude Code / Cursor /
-#    Claude Desktop can call usage_summary / recent_sessions / session_tools
+# Optional — register as an MCP server (Claude Code shown; Cursor/Desktop
+# config paths are printed at the end of \`setup\`)
 claude mcp add token-meter -- npx -y @whdrnr2583/token-meter mcp
 
-# 5. Verify
-token-meter --version
+# Verify
 TOKEN_METER_GATING=1 token-meter stats 30   # no "Free tier" warning = success
 </pre>
 
 <p style="font-size:13px;color:#666;margin:0 0 22px">
-On Windows / PowerShell: replace step 3 with <code>setx TOKEN_METER_GATING 1</code> and restart the terminal.
-For Cursor / Claude Desktop, the MCP entry goes in <code>~/.cursor/mcp.json</code> or <code>~/Library/Application Support/Claude/claude_desktop_config.json</code> — the assistant will know the format.
+On Windows / PowerShell <code>setup</code> still activates the license, but the rc-append step is skipped — run <code>setx TOKEN_METER_GATING 1</code> manually and restart the terminal.
 </p>
 
 <h3 style="margin:0 0 8px">What you unlocked with ${label}</h3>

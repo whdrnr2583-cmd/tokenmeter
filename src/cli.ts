@@ -11,6 +11,7 @@ const USAGE = `Usage:
   token-meter serve               Run the dashboard at http://localhost:8765
   token-meter mcp                 Run as an MCP server (stdio) for Claude Code / Cursor
   token-meter activate <key>      Activate a Pro / Pro+ license
+  token-meter setup <key>         activate + add gating export to ~/.zshrc / ~/.bashrc
 
 Flags:
   -v, --version                   Print version
@@ -131,6 +132,42 @@ async function main(): Promise<void> {
       console.error(result.message);
       process.exit(1);
     }
+    return;
+  }
+
+  if (cmd === 'setup') {
+    const key = rest.find((s) => s.startsWith('tm_')) ?? rest[0]?.trim() ?? '';
+    if (!key) {
+      console.error('Usage: token-meter setup <license_key>');
+      process.exit(1);
+    }
+    const { activateLicense, appendShellRc } = await import('./license.js');
+    const act = await activateLicense(key);
+    if (!act.ok) {
+      console.error(act.message);
+      process.exit(1);
+    }
+    console.log(act.message);
+
+    const rc = appendShellRc();
+    if (rc.modified) {
+      console.log(
+        `Added \`export TOKEN_METER_GATING=1\` to ${rc.path}. ` +
+          `Restart your shell or run \`source ${rc.path}\` to apply.`,
+      );
+    } else if (rc.alreadyPresent) {
+      console.log(`Gating env already present in ${rc.path} — nothing to add.`);
+    } else {
+      console.log(`Skipped shell rc edit: ${rc.reason ?? 'unknown reason'}`);
+    }
+
+    console.log('');
+    console.log('Optional — register Token Meter as an MCP server:');
+    console.log('  Claude Code: claude mcp add token-meter -- npx -y @whdrnr2583/token-meter mcp');
+    console.log('  Cursor:      add to ~/.cursor/mcp.json under "mcpServers":');
+    console.log('    "token-meter": { "command": "npx", "args": ["-y", "@whdrnr2583/token-meter", "mcp"] }');
+    console.log('');
+    console.log('Verify: TOKEN_METER_GATING=1 token-meter stats 30  (no "Free tier" warning = success)');
     return;
   }
 

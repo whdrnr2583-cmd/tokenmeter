@@ -9,7 +9,13 @@
 // D-031) is live, the default flips to enabled and TOKEN_METER_GATING is
 // reinterpreted to mean "force gating off" (developer escape hatch).
 
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -230,5 +236,79 @@ export async function activateLicense(
   return {
     ok: true,
     message: `Activated ${label} on this machine. Run \`token-meter --version\` to confirm, or restart your dashboard / MCP server to pick up the change.`,
+  };
+}
+
+// ---------- Shell rc append (`setup` command) ----------
+
+export interface ShellRcResult {
+  modified: boolean;
+  alreadyPresent: boolean;
+  path: string | null;
+  reason: string | null;
+}
+
+const SHELL_RC_LINE = 'export TOKEN_METER_GATING=1';
+
+/**
+ * Append `export TOKEN_METER_GATING=1` to the user's shell rc if not already
+ * present. Tries `~/.zshrc` → `~/.bashrc` → `~/.profile` in order, writing to
+ * the first one that exists. Idempotent: matching string presence means skip.
+ *
+ * Windows: skipped — user runs `setx TOKEN_METER_GATING 1` themselves.
+ */
+export function appendShellRc(): ShellRcResult {
+  if (process.platform === 'win32') {
+    return {
+      modified: false,
+      alreadyPresent: false,
+      path: null,
+      reason:
+        'Windows — run `setx TOKEN_METER_GATING 1` in cmd/PowerShell and restart the terminal.',
+    };
+  }
+  const home = homedir();
+  const candidates = [
+    join(home, '.zshrc'),
+    join(home, '.bashrc'),
+    join(home, '.profile'),
+  ];
+  for (const path of candidates) {
+    if (!existsSync(path)) continue;
+    let content = '';
+    try {
+      content = readFileSync(path, 'utf8');
+    } catch (err) {
+      return {
+        modified: false,
+        alreadyPresent: false,
+        path,
+        reason: `read failed: ${(err as Error).message}`,
+      };
+    }
+    if (content.includes('TOKEN_METER_GATING')) {
+      return { modified: false, alreadyPresent: true, path, reason: null };
+    }
+    try {
+      appendFileSync(
+        path,
+        `\n# Token Meter — paid-tier gating (added by \`token-meter setup\`)\n${SHELL_RC_LINE}\n`,
+      );
+    } catch (err) {
+      return {
+        modified: false,
+        alreadyPresent: false,
+        path,
+        reason: `append failed: ${(err as Error).message}`,
+      };
+    }
+    return { modified: true, alreadyPresent: false, path, reason: null };
+  }
+  return {
+    modified: false,
+    alreadyPresent: false,
+    path: null,
+    reason:
+      'no shell rc found (~/.zshrc, ~/.bashrc, ~/.profile). Add `export TOKEN_METER_GATING=1` to your shell config manually.',
   };
 }

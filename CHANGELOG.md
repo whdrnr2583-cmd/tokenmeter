@@ -5,6 +5,26 @@ All notable changes to Token Meter.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] — 2026-05-15
+
+### Added
+- **`token-meter setup <key>`** — one-shot subcommand bundling
+  `activate <key>` + appending `export TOKEN_METER_GATING=1` to the user's
+  shell rc (`~/.zshrc` → `~/.bashrc` → `~/.profile`, first existing) +
+  printing the MCP-registration commands for Claude Code / Cursor.
+  Idempotent: detects existing `TOKEN_METER_GATING` line in the rc and
+  skips appending. Windows skips the rc append and tells the user to
+  run `setx TOKEN_METER_GATING 1` instead.
+- `appendShellRc()` helper in `src/license.ts` (exported, reusable).
+
+### Why
+Setup used to be 4 manual commands (install, activate, edit shell rc,
+register MCP). `setup` collapses the first three into one, and the
+license email template (v0.1.3 worker change) now points at this
+command for the LLM-assisted install path.
+
+---
+
 ## [0.1.3] — 2026-05-15
 
 ### Added
