@@ -21,6 +21,27 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
     Free callers).
 - CLI emits a one-line warning when `stats <days>` is clamped by the
   active tier.
+- **`token-meter activate <key>`** CLI command. Verifies the key against
+  the worker API and writes `~/.tokenmeter/license.json` with permission
+  `0600`.
+- **Remote license verify** in `src/license.ts` (`verifyLicenseRemote`,
+  `activateLicense`). Default API base `https://api.token-meter.dev`,
+  override via `TOKEN_METER_API_BASE`.
+- **7-day offline grace period**: after a successful `activate`, the
+  local config keeps the Pro/Pro+ tier active for 7 days without
+  re-verification. After that, the tier falls back to Free until the
+  user runs `activate` again.
+- **`infra/api` worker hardening**:
+  - Polar webhook now verifies the **Standard Webhooks** signature
+    (`webhook-id` + `webhook-timestamp` + `webhook-signature`,
+    HMAC-SHA256 base64, ±5 min replay window), not just a raw HMAC of
+    the body.
+  - License-issuance email shipped through **Resend** (`RESEND_API_KEY`
+    + `RESEND_FROM` env). Email contains the key, the `activate`
+    command, and the env-var fallback.
+- **`docs/billing-setup.md`** — step-by-step runbook for the
+  Polar / Cloudflare D1 / Resend / custom-domain wiring, including the
+  end-to-end live-test checklist.
 
 ### Notes
 - Gating is dormant in this release. With `TOKEN_METER_GATING` unset (the

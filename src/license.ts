@@ -9,9 +9,9 @@
 // D-031) is live, the default flips to enabled and TOKEN_METER_GATING is
 // reinterpreted to mean "force gating off" (developer escape hatch).
 
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 export type Tier = 'free' | 'pro' | 'pro_plus';
 
@@ -31,6 +31,14 @@ export interface Entitlement {
 const GATING_ENV = 'TOKEN_METER_GATING';
 const LICENSE_ENV = 'TOKEN_METER_LICENSE';
 const CONFIG_PATH = join(homedir(), '.tokenmeter', 'license.json');
+
+const API_BASE_DEFAULT = 'https://api.token-meter.dev';
+function getApiBase(): string {
+  return process.env.TOKEN_METER_API_BASE ?? API_BASE_DEFAULT;
+}
+
+/** Offline grace period: 7 days since the last successful remote verify. */
+export const GRACE_PERIOD_MS = 7 * 24 * 60 * 60 * 1000;
 
 export const HISTORY_CAP: Record<Tier, number | null> = {
   free: 7,
@@ -74,7 +82,12 @@ export function getEntitlement(): Entitlement {
 
   try {
     const raw = readFileSync(CONFIG_PATH, 'utf8');
-    const parsed = JSON.parse(raw) as { tier?: string; valid_until_ms?: number };
+    const parsed = JSON.parse(raw) as {
+      tier?: string;
+      valid_until_ms?: number;
+      license_key?: string;
+      last_verified_ms?: number;
+    };
     const tier = parseTier(parsed.tier ?? '');
     if (tier) {
       const exp = parsed.valid_until_ms ?? null;
@@ -84,6 +97,21 @@ export function getEntitlement(): Entitlement {
           valid_until_ms: exp,
           source: 'expired_fallback',
           message: `License expired at ${new Date(exp).toISOString()}. Falling back to Free.`,
+        };
+      }
+      // Offline grace period: if the license was activated against the
+      // remote API and hasn't been re-verified in over GRACE_PERIOD_MS, fall
+      // back to Free until the next successful verify.
+      if (
+        parsed.license_key &&
+        typeof parsed.last_verified_ms === 'number' &&
+        Date.now() - parsed.last_verified_ms > GRACE_PERIOD_MS
+      ) {
+        return {
+          tier: 'free',
+          valid_until_ms: exp,
+          source: 'expired_fallback',
+          message: `License not verified in over ${Math.floor(GRACE_PERIOD_MS / 86_400_000)} days. Run \`token-meter activate <key>\` to refresh.`,
         };
       }
       return {
@@ -117,4 +145,87 @@ export function isProTier(tier: Tier): boolean {
 
 export function isProPlusTier(tier: Tier): boolean {
   return tier === 'pro_plus';
+}
+
+// ---------- Remote verify + activate (talks to infra/api worker) ----------
+
+export interface RemoteVerifyResult {
+  valid: boolean;
+  plan?: 'pro' | 'pro_plus' | 'team';
+  status?: string;
+  expires_at?: number | null;
+  error?: string;
+}
+
+export async function verifyLicenseRemote(
+  key: string,
+): Promise<RemoteVerifyResult> {
+  try {
+    const res = await fetch(`${getApiBase()}/v1/license/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      return {
+        valid: false,
+        error: `status_${res.status}_${text.slice(0, 80)}`,
+      };
+    }
+    return (await res.json()) as RemoteVerifyResult;
+  } catch (err) {
+    return {
+      valid: false,
+      error: `network_${(err as Error).message ?? 'unknown'}`,
+    };
+  }
+}
+
+export async function activateLicense(
+  key: string,
+): Promise<{ ok: boolean; message: string }> {
+  const trimmed = key.trim();
+  if (!trimmed.startsWith('tm_')) {
+    return {
+      ok: false,
+      message: `Invalid license key format. Expected tm_<...> received "${trimmed.slice(0, 16)}".`,
+    };
+  }
+  const result = await verifyLicenseRemote(trimmed);
+  if (!result.valid) {
+    return {
+      ok: false,
+      message: `License verification failed: ${result.error ?? 'unknown'}`,
+    };
+  }
+  const tier: Tier =
+    result.plan === 'pro_plus' || result.plan === 'team' ? 'pro_plus' : 'pro';
+  try {
+    mkdirSync(dirname(CONFIG_PATH), { recursive: true });
+    writeFileSync(
+      CONFIG_PATH,
+      JSON.stringify(
+        {
+          tier,
+          license_key: trimmed,
+          valid_until_ms: result.expires_at ?? null,
+          last_verified_ms: Date.now(),
+        },
+        null,
+        2,
+      ),
+      { mode: 0o600 },
+    );
+  } catch (err) {
+    return {
+      ok: false,
+      message: `Failed to write ${CONFIG_PATH}: ${(err as Error).message}`,
+    };
+  }
+  const label = tier === 'pro_plus' ? 'Pro+' : 'Pro';
+  return {
+    ok: true,
+    message: `Activated ${label} on this machine. Run \`token-meter --version\` to confirm, or restart your dashboard / MCP server to pick up the change.`,
+  };
 }

@@ -16,4 +16,5 @@ database_id = "REPLACE_WITH_D1_ID"
 
 [vars]
 APP_NAME = "Token Meter"
-SITE_URL = "https://tokenmeter.dev"
+SITE_URL = "https://token-meter.dev"
+RESEND_FROM = "Token Meter <noreply@token-meter.dev>"

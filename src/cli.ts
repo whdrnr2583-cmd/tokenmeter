@@ -10,6 +10,7 @@ const USAGE = `Usage:
   token-meter stats [days=30]     Print summary
   token-meter serve               Run the dashboard at http://localhost:8765
   token-meter mcp                 Run as an MCP server (stdio) for Claude Code / Cursor
+  token-meter activate <key>      Activate a Pro / Pro+ license
 
 Flags:
   -v, --version                   Print version
@@ -113,6 +114,23 @@ async function main(): Promise<void> {
     const { startDashboard } = await import('./server.js');
     await startDashboard();
     // startDashboard keeps the process alive via app.listen + setInterval.
+    return;
+  }
+
+  if (cmd === 'activate') {
+    const key = rest[0]?.trim() ?? '';
+    if (!key) {
+      console.error('Usage: token-meter activate <license_key>');
+      process.exit(1);
+    }
+    const { activateLicense } = await import('./license.js');
+    const result = await activateLicense(key);
+    if (result.ok) {
+      console.log(result.message);
+    } else {
+      console.error(result.message);
+      process.exit(1);
+    }
     return;
   }
 
