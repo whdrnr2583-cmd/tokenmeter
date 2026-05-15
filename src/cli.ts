@@ -12,13 +12,15 @@ const USAGE = `Usage:
   token-meter mcp                           Run as an MCP server (stdio) for Claude Code / Cursor
   token-meter install-mcp <client>          Register the MCP server (one of:
                                             claude-code | cursor | claude-desktop | all)
+  token-meter install-command <client>      Install the /token-meter slash command
+                                            (currently: claude-code only)
   token-meter activate <key>                Activate a Pro / Pro+ license
   token-meter setup <key>                   activate + add gating export to ~/.zshrc / ~/.bashrc
 
 Flags:
   -v, --version                             Print version
   -h, --help                                Print this message
-  --dry-run                                 (install-mcp only) preview changes without writing`;
+  --dry-run                                 (install-mcp / install-command) preview changes`;
 
 function getVersion(): string {
   try {
@@ -158,6 +160,32 @@ async function main(): Promise<void> {
       arg as 'claude-code' | 'cursor' | 'claude-desktop' | 'all',
       { dryRun },
     );
+    let failed = false;
+    for (const r of results) {
+      const icon =
+        r.action === 'added' || r.action === 'updated'
+          ? '✓'
+          : r.action === 'already-present'
+            ? '='
+            : r.action === 'skipped'
+              ? '–'
+              : '✗';
+      console.log(`${icon} [${r.client}] ${r.message}`);
+      if (!r.ok) failed = true;
+    }
+    if (failed) process.exit(1);
+    return;
+  }
+
+  if (cmd === 'install-command') {
+    const arg = rest.find((s) => !s.startsWith('--'))?.trim() ?? '';
+    const dryRun = rest.includes('--dry-run');
+    if (arg !== 'claude-code') {
+      console.error('Usage: token-meter install-command claude-code [--dry-run]');
+      process.exit(1);
+    }
+    const { installCommand } = await import('./install-command.js');
+    const results = installCommand(arg, { dryRun });
     let failed = false;
     for (const r of results) {
       const icon =

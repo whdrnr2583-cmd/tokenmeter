@@ -3,7 +3,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { migrate, openDb } from './db.js';
 import { ingestAll } from './ingest.js';
-import { byModel, byProject, overview } from './stats.js';
+import { byMcp, byModel, byProject, overview } from './stats.js';
 import { recentSessions, sessionToolSummary } from './sessions.js';
 
 function fmtUsd(n: number): string {
@@ -49,6 +49,7 @@ export async function startMcpServer(): Promise<void> {
       const o = overview(db, days);
       const models = byModel(db, days).slice(0, 5);
       const projects = byProject(db, days, 5);
+      const mcps = byMcp(db, days, 5);
       const lines = [
         `Token Meter — last ${period === 'today' ? '24h' : period === 'week' ? '7d' : '30d'}`,
         `Estimated API-equivalent cost: ${fmtUsd(o.total_usd)}`,
@@ -62,6 +63,14 @@ export async function startMcpServer(): Promise<void> {
           const name = p.project.length > 50 ? '…' + p.project.slice(-50) : p.project;
           return `  ${name}  ${fmtUsd(p.usd)}`;
         }),
+        '',
+        'Top MCP / tools (by response tokens):',
+        ...(mcps.length > 0
+          ? mcps.map((m) => {
+              const where = m.mcp_server ? `mcp:${m.mcp_server}` : 'built-in';
+              return `  ${where.padEnd(14)} ${m.tool_name.padEnd(28)} calls=${String(m.calls).padStart(4)}  resp=${fmtTok(m.total_response_tokens).padStart(7)}  avg=${Math.round(m.avg_latency_ms)}ms`;
+            })
+          : ['  (no tool calls recorded in this window)']),
         '',
         'Note: cost is API-equivalent; if you are on a Max/Pro flat plan you pay your subscription, not this.',
       ];

@@ -5,6 +5,43 @@ All notable changes to Token Meter.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7] — 2026-05-15
+
+### Added
+- **`/token-meter` slash command for Claude Code**. Run
+  `npx -y @whdrnr2583/token-meter install-command claude-code` to install
+  a short markdown file at `~/.claude/commands/token-meter.md`; after a
+  Claude Code restart, typing `/token-meter` triggers a single summary
+  view that calls the `usage_summary` MCP tool and appends a one-block
+  hint about the other slash commands, the CLI, and the Pro tier.
+
+  This is in addition to the existing MCP prompts. MCP clients always
+  prefix prompts as `/mcp__token-meter__<name>` (spec-mandated); the new
+  custom slash command is the way to get a short `/token-meter` entry
+  point. Currently `install-command claude-code` is the only supported
+  client — Cursor / Claude Desktop use different slash-command systems
+  and are out of scope for this release.
+
+  Idempotent (re-run is `already-present`). Backs up an existing managed
+  file to `<path>.bak` before overwriting. Refuses to overwrite an
+  unmanaged file (no `@whdrnr2583/token-meter` marker) and exits 1.
+
+### Changed
+- **`usage_summary` MCP tool now includes an MCP / tools breakdown**
+  (top 5 by response tokens) so the new `/token-meter` slash command can
+  show "today + MCP / tools" in a single call. Existing callers see one
+  extra section appended to the same text response; the tool signature
+  is unchanged.
+
+### Why
+Follow-up to v0.1.6 dogfood UX work (D-033). MCP-prefixed slash commands
+work but are visually long; the new custom slash command is the short
+`/token-meter` entry point that surfaces today's usage plus a small,
+honest hint about the Pro tier. Still a dogfood UX bet (D-034), not a
+direct payment trigger.
+
+---
+
 ## [0.1.6] — 2026-05-15
 
 ### Added

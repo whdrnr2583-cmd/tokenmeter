@@ -824,6 +824,46 @@ github.com/<owner>/token-meter-api   ← private (라이선스 API, CF Workers +
 
 ---
 
+## D-034. `/token-meter` custom slash command — Claude Code only, dogfood UX 확장
+**날짜**: 2026-05-15
+**결정**: MCP 클라이언트의 `/mcp__<server>__<prompt>` prefix 강제 spec을 우회하기 위해 Claude Code `~/.claude/commands/<name>.md` Custom Slash Command 시스템으로 `/token-meter` 슬래시 도입. 단일 진입점에서 오늘 사용량 + MCP·도구별 분해 + 다른 명령 hint + Pro $5 안내 한 번에 노출.
+
+**기술 사실 박제**:
+- **MCP spec 한계**: `server.registerPrompt('usage_summary', ...)` 등록해도 클라이언트는 항상 `/mcp__token-meter__usage_summary` 로 노출. prompt name을 짧게 해도 결과는 동일 prefix. **MCP 자체로 `/token-meter` 한 줄 직접 불가능**.
+- **우회 path**: Claude Code 별도 시스템 — `~/.claude/commands/<name>.md` markdown 파일이 슬래시 prompt. 사용자가 `/token-meter` 입력 시 markdown 본문이 LLM에 prompt로 주입.
+- **Cursor / Claude Desktop은 슬래시 시스템 다름** — 1차 미지원, 본인 = 주 사용자 ROI 최대.
+
+**구현**:
+- [src/install-command.ts](src/install-command.ts) — `installClaudeCodeCommand()` (install-mcp 패턴 복제: idempotent, .bak 백업, dry-run, targetPath override 테스트 seam)
+- `commandTemplate()` 본문 = `usage_summary` 호출 지시 + 결과 그대로 출력 + Pro 안내 블록 fixed text
+- [src/cli.ts](src/cli.ts) — `token-meter install-command claude-code [--dry-run]` 서브명령
+- [src/mcp.ts](src/mcp.ts) — `usage_summary` tool 응답에 MCP·도구별 top 5 섹션 추가 (단일 호출로 슬래시 출력 충분)
+- [test/install-command.test.ts](test/install-command.test.ts) — 7 케이스 (create / idempotent / update-managed / refuse-unmanaged / dry-run create / dry-run stale / template content)
+- [docs/mcp-server.md](docs/mcp-server.md) — `/token-meter` 섹션 신설
+- 의존성 추가: **0**
+
+**카테고리 분류 (정직 박제)**:
+- **dogfood UX + 약한 marketing surface**: [[D-033]] v0.1.6 슬래시 prompts (긴 prefix)는 dogfood UX 카테고리. v0.1.7 `/token-meter` 한 줄은 **dogfood UX + 결제 카피 자연 노출 surface** 1개 추가. 본인 + 슬래시 선호 user 호출 시 Pro 안내 자동 표시.
+- **결제 trigger 직접 아님**: Pro 안내 1줄로 awareness 증가는 가능. 하지만 [[D-026]] Pro 4종 (세션 드릴다운 / 비용 예측 / CSV export / 커스텀 가격)이 실 결제 정당화 mechanism. 슬래시는 noise floor 채움.
+- **마케팅 oversell 위험**: "/token-meter" 카피로 가치 과장 시 자기 기만. README/카피는 부수적·정직 표기 유지.
+
+**근거 (사용자 명시 결정)**:
+- 사용자 발화 (2026-05-15 22:14 KST): "/mcp_token-meter는 좀 이상해. 다른 mcp명령어처럼 /했을때 바로 나와야지 /token-meter ... 기본적인거 '오늘사용량 MCP별사용량' 보기좋게 간단히 보여주고, 다른명령어나 pro구독 내용 사람들에게 보여주는형태를 기대했다"
+- "진행해주세요" — [[D-031]] 사용자 명시 메타룰 우회 룰 정합
+
+**위험 + 안전장치**:
+- **기존 슬래시 파일 충돌**: 사용자가 `~/.claude/commands/token-meter.md` 직접 작성한 경우 → install이 `@whdrnr2583/token-meter` 마커 없으면 `skipped` + exit 1 (덮어쓰기 거부). 본인 환경의 기존 `tokenmeter.md` (no 하이픈)는 별개 슬래시라 영향 X.
+- **Custom slash command spec 변경 위험**: Claude Code 향후 슬래시 시스템 변경 시 1회 마이그레이션. 안정성은 plain markdown이라 매우 작음.
+
+**번복 트리거**:
+- 6개월 dogfood 빈도: `/token-meter` 사용 << 자연어 호출 → 부담 작지만 유지 default (50 LOC 추가뿐)
+- Pro 안내 카피로 항의 / 부정 응답 보고 → Pro 블록 제거 또는 옵션화
+- Cursor / Claude Desktop user 추가 30+ → 클라이언트 분기 확장 검토
+
+**관련 박제**: [[D-033]] v0.1.6 MCP prompts (slash 시작점, 긴 prefix) / [[D-028]] MCP 서버 4 헬퍼 / [[D-031]] 사용자 명시 메타룰 우회 / [[D-026]] Pro 4종 결제 trigger (본 박제는 noise floor surface, 직접 trigger 아님)
+
+---
+
 ## 향후 결정 보류 항목
 
 | 번호 | 항목 | 결정 시점 |

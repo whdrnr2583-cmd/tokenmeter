@@ -31,6 +31,27 @@ MCP prompts (Claude Code, Cursor, Claude Desktop):
 Slash commands and natural-language calls both work — pick whichever is faster
 for the moment.
 
+### Short `/token-meter` (Claude Code only)
+
+The MCP spec forces the long `/mcp__<server>__<prompt>` prefix on prompts.
+For a shorter `/token-meter` entry point in Claude Code, install a custom
+slash command:
+
+```sh
+npx -y @whdrnr2583/token-meter install-command claude-code
+```
+
+This writes `~/.claude/commands/token-meter.md` (or
+`%USERPROFILE%\.claude\commands\token-meter.md` on Windows) and is
+idempotent — re-running prints `already-present`. Restart Claude Code
+or open a new session, then type `/token-meter` for a one-shot summary
+of today's usage with model / project / MCP / tool breakdowns and a
+hint about the other commands.
+
+Cursor and Claude Desktop use different slash-command systems and are
+not supported by `install-command` in this release; use the
+`/mcp__token-meter__*` prompts there instead.
+
 It reads the same local SQLite database the CLI writes (`~/.tokenpulse/usage.db`,
 renamed to `~/.tokenmeter/` in a future release with an automatic migration).
 Token Meter never talks to vendor APIs.
