@@ -34,8 +34,8 @@ npx -y @whdrnr2583/token-meter stats 7
 | 날짜 | npm DL | GitHub ★ | Tally | Gmail | dogfood OK | 메모 |
 |---|---|---|---|---|---|---|
 | 5/13 | 0 | 0 | ? | ? | publish | v0.1.0→0.1.1 (MCP Registry mcpName) |
-| 5/14 | 0 | 0 | ? | ? | ✓ | T+24h 회고 + v0.1.2 publish (serve subcommand fix + --version/--help). npx clean 검증 OK |
-| 5/15 | _ | _ | _ | _ | _ | |
+| 5/14 | 368* | 0 | ? | ? | ✓ | T+24h 회고 + v0.1.2 publish (serve subcommand fix + --version/--help). npx clean 검증 OK. *DL 368 = 5개 버전 균등 분포(88/112/135/98/100) → mirror·security scanner (Socket/Snyk 등) 자동 scan 추정, 실 install 0 |
+| 5/15 | 0 | 0 | ? | ? | ✓ | v0.1.3 (license gating + Polar webhook + Resend) + v0.1.4 (setup) + v0.1.5 (install-mcp) 묶음 publish. D-031/D-032 박제. LEGACY 3종 archive (pmf_gate_progress / icp_interview_template / kakao_announcement_v1) |
 | 5/16 | _ | _ | _ | _ | _ | |
 | 5/17 | _ | _ | _ | _ | _ | |
 | 5/18 | _ | _ | _ | _ | _ | |

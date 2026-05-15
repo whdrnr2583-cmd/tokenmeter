@@ -46,6 +46,17 @@ child.stdout.on('data', (chunk) => {
     const r = await send('tools/call', { name: 'usage_summary', arguments: { period: 'week' } });
     if (!r.content?.[0]?.text?.includes('Token Meter')) throw new Error('unexpected output');
     console.log('✅ built usage_summary returned text');
+
+    const prompts = await send('prompts/list', {});
+    const names = (prompts.prompts ?? []).map((p) => p.name);
+    console.log('✅ built prompts/list:', names.join(', '));
+    for (const want of ['usage_summary', 'recent_sessions', 'session_tools', 'refresh_data']) {
+      if (!names.includes(want)) throw new Error('missing prompt: ' + want);
+    }
+    const p = await send('prompts/get', { name: 'usage_summary', arguments: { period: 'month' } });
+    if (!p.messages?.[0]?.content?.text?.includes('period="month"')) throw new Error('prompt arg not echoed');
+    console.log('✅ built prompts/get usage_summary returned messages');
+
     child.kill();
     process.exit(0);
   } catch (e) { console.error('❌', e.message); child.kill(); process.exit(1); }

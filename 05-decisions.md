@@ -780,6 +780,50 @@ github.com/<owner>/token-meter-api   ← private (라이선스 API, CF Workers +
 
 ---
 
+## D-033. MCP prompts 추가 (slash-command 노출) — dogfood UX 카테고리, 결제 trigger 아님
+**날짜**: 2026-05-15
+**결정**: `src/mcp.ts` 4 tools 각각에 1:1 페어링되는 MCP prompts 등록. 클라이언트(Claude Code · Cursor · Claude Desktop)가 자동으로 `/mcp__token-meter__<name>` 슬래시 명령으로 노출.
+
+**노출 슬래시 4종**:
+| 슬래시 | arg | 페어 tool |
+|---|---|---|
+| `/mcp__token-meter__usage_summary` | `period` (today\|week\|month, default today) | `usage_summary` |
+| `/mcp__token-meter__recent_sessions` | `within_hours` (1-720, default 24) | `recent_sessions` |
+| `/mcp__token-meter__session_tools` | `session_id` (required) | `session_tools` |
+| `/mcp__token-meter__refresh_data` | — | `refresh_data` |
+
+**카테고리 분류 (정직 박제)**:
+- **dogfood UX 편의**: 사용자 본인 1명 발의. 외부 ICP 요청 0. 슬래시 직접 호출 선호 power user UX 마이크로 개선.
+- **결제 trigger 아님**: [[D-026]] Pro 4종 (세션 드릴다운 / 비용 예측 / CSV·JSON export / 커스텀 가격 매트릭스)과 무관. Pro $5 결제 정당화 강화 X.
+- **차별점 강도 약함**: ccusage / tokscale 대비 marketing 트로피 아님. README/HN 카피 부수적 한 줄 추가만 가능.
+
+**근거 (사용자 명시 결정)**:
+- 사용자 발화 (2026-05-15): "지금 기능도 유지하고, MCP prompts도 추가하자" — 자연어 호출 패턴 유지하면서 추가
+- 의견 요청에 "사업가적으로 비추, dogfood UX 편의 카테고리라면 OK" 답변 → 사용자 1번 선택 (dogfood UX 진행)
+- [[D-031]] 사용자 명시 메타룰 우회 룰 정합 (비-매매 메타룰은 사용자 명시 + 이유 박제 시 우회 가능)
+
+**구현**:
+- [src/mcp.ts](src/mcp.ts) `server.registerPrompt(...)` 4개 (~60 LOC 추가)
+- [scripts/test-mcp.cjs](scripts/test-mcp.cjs) + [scripts/test-mcp-built.cjs](scripts/test-mcp-built.cjs) prompts/list + prompts/get 검증 추가
+- [docs/mcp-server.md](docs/mcp-server.md) 슬래시 명령 표 추가 (자연어·슬래시 둘 다 동등)
+- [CHANGELOG.md](CHANGELOG.md) v0.1.6 entry
+
+**검증**:
+- typecheck / test 33/33 / audit 8 invariants / build all green
+- dist MCP 스모크: prompts/list 4 prompts 노출, prompts/get usage_summary period=month echo OK
+
+**위험**:
+- 유지보수: tool signature 변경 시 prompt arg 시그너처도 동시 갱신 의무 (drift 약함)
+- 마케팅 oversell 위험: "slash commands!" 카피로 가치 과장 시 자기 기만. 카피는 부수적·정직 표기 유지 ("/와 자연어 둘 다 동등")
+
+**번복 트리거**:
+- 6개월 dogfood 사용 빈도 자연어 호출 vs 슬래시 = 자연어 압도 → prompts 제거 검토 (코드는 50 LOC라 부담 작음, 유지 default)
+- MCP prompt API breaking change (SDK 변경) → 마이그레이션 비용 평가
+
+**관련 박제**: [[D-028]] MCP 서버 모드 4 헬퍼 / [[D-031]] 사용자 명시 메타룰 우회 / [[D-026]] Pro 4종 결제 trigger (본 박제는 결제 trigger 아닌 dogfood UX)
+
+---
+
 ## 향후 결정 보류 항목
 
 | 번호 | 항목 | 결정 시점 |

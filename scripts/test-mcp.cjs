@@ -61,6 +61,29 @@ child.stdout.on('data', (chunk) => {
     const recent = await send('tools/call', { name: 'recent_sessions', arguments: { within_hours: 168 } });
     console.log('✅ recent_sessions (first line):', (recent.content?.[0]?.text ?? '').split('\n')[0]);
 
+    const prompts = await send('prompts/list', {});
+    const names = (prompts.prompts ?? []).map((p) => p.name);
+    console.log('✅ prompts/list:', names.join(', '));
+    const expected = ['usage_summary', 'recent_sessions', 'session_tools', 'refresh_data'];
+    for (const want of expected) {
+      if (!names.includes(want)) throw new Error(`missing prompt: ${want}`);
+    }
+
+    const usagePrompt = await send('prompts/get', { name: 'usage_summary', arguments: { period: 'week' } });
+    const usageText = usagePrompt.messages?.[0]?.content?.text ?? '';
+    if (!usageText.includes('period="week"')) throw new Error('usage_summary prompt did not echo period');
+    console.log('✅ prompts/get usage_summary (period=week): ok');
+
+    const recentPrompt = await send('prompts/get', { name: 'recent_sessions', arguments: {} });
+    const recentText = recentPrompt.messages?.[0]?.content?.text ?? '';
+    if (!recentText.includes('within_hours=24')) throw new Error('recent_sessions prompt did not default to 24h');
+    console.log('✅ prompts/get recent_sessions (default 24h): ok');
+
+    const refreshPrompt = await send('prompts/get', { name: 'refresh_data', arguments: {} });
+    const refreshText = refreshPrompt.messages?.[0]?.content?.text ?? '';
+    if (!refreshText.includes('refresh_data')) throw new Error('refresh_data prompt missing tool name');
+    console.log('✅ prompts/get refresh_data: ok');
+
     console.log('\nAll MCP smoke checks passed.');
     child.kill();
     process.exit(0);

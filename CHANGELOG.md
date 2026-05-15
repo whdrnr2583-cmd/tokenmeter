@@ -5,6 +5,33 @@ All notable changes to Token Meter.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6] — 2026-05-15
+
+### Added
+- **MCP prompts (slash commands)** — the four read-only tools are now also
+  exposed as prompts, so clients that surface MCP prompts (Claude Code,
+  Cursor, Claude Desktop) show them as slash commands:
+  - `/mcp__token-meter__usage_summary` (arg: `period` = `today` | `week` |
+    `month`, default `today`)
+  - `/mcp__token-meter__recent_sessions` (arg: `within_hours` = 1-720,
+    default 24)
+  - `/mcp__token-meter__session_tools` (arg: `session_id`, required)
+  - `/mcp__token-meter__refresh_data` (no args)
+
+  Each prompt returns a one-line user-role message that asks the agent to
+  call the matching tool. Natural-language invocation ("show me my usage
+  this week") still works exactly as before — the prompts are an additive
+  shortcut for users who prefer typing `/`.
+
+### Why
+Dogfood UX shortcut, not a feature-value bet. The four tools were already
+reachable by asking the agent in natural language; adding prompts is a ~50
+LOC additive change that lets the author and other slash-command-leaning
+users skip the typing. Marketing weight and pricing position are
+unchanged.
+
+---
+
 ## [0.1.5] — 2026-05-15
 
 ### Added

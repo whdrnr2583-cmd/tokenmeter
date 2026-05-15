@@ -140,6 +140,103 @@ export async function startMcpServer(): Promise<void> {
     },
   );
 
+  // Prompts — slash-command entry points that pair 1:1 with the tools above.
+  // Clients (Claude Code / Cursor / Claude Desktop) surface these as
+  // `/mcp__token-meter__<name>` so users can invoke without typing natural language.
+  // Each prompt returns a user-role message that instructs the agent to call the matching tool.
+
+  server.registerPrompt(
+    'usage_summary',
+    {
+      title: 'Token Meter — usage summary',
+      description: 'Summarize Claude Code + Codex usage for today / week / month.',
+      argsSchema: {
+        period: z.string().optional().describe('today | week | month (default: today)'),
+      },
+    },
+    ({ period }) => {
+      const p = period === 'week' || period === 'month' ? period : 'today';
+      return {
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `Call the token-meter usage_summary tool with period="${p}" and present the result. Note the cost is an API-equivalent estimate, not vendor invoice.`,
+            },
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerPrompt(
+    'recent_sessions',
+    {
+      title: 'Token Meter — recent sessions',
+      description: 'List recent Claude Code / Codex sessions with ready-to-paste resume commands.',
+      argsSchema: {
+        within_hours: z.string().optional().describe('hours to look back, 1-720 (default: 24)'),
+      },
+    },
+    ({ within_hours }) => {
+      const parsed = within_hours ? parseInt(within_hours, 10) : 24;
+      const hours = Number.isFinite(parsed) && parsed >= 1 && parsed <= 720 ? parsed : 24;
+      return {
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `Call the token-meter recent_sessions tool with within_hours=${hours}. Show me which sessions I could resume; surface the cd + resume command verbatim for each.`,
+            },
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerPrompt(
+    'session_tools',
+    {
+      title: 'Token Meter — session tools',
+      description: 'Show MCP / built-in tool breakdown for a specific session_id.',
+      argsSchema: {
+        session_id: z.string().describe('the session_id to inspect'),
+      },
+    },
+    ({ session_id }) => ({
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Call the token-meter session_tools tool with session_id="${session_id}". Highlight which tools dominated by call count, response size, or average latency.`,
+          },
+        },
+      ],
+    }),
+  );
+
+  server.registerPrompt(
+    'refresh_data',
+    {
+      title: 'Token Meter — refresh data',
+      description: 'Re-scan local JSONL files to pick up new Claude Code / Codex activity.',
+    },
+    () => ({
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: 'Call the token-meter refresh_data tool and tell me how many new token rows were ingested for each source.',
+          },
+        },
+      ],
+    }),
+  );
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

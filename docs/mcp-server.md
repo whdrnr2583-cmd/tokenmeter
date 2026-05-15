@@ -18,6 +18,19 @@ Token Meter exposes four read-only tools over stdio MCP:
 | `session_tools` | Per-session breakdown: which MCP servers and built-in tools the session used, call counts, response sizes, average latency |
 | `refresh_data` | Re-scan local JSONL for new activity |
 
+Each tool is also exposed as a **slash-command prompt** for clients that surface
+MCP prompts (Claude Code, Cursor, Claude Desktop):
+
+| Slash command | Arg | What it does |
+|---|---|---|
+| `/mcp__token-meter__usage_summary` | `period` = `today` \| `week` \| `month` (default `today`) | Same as the `usage_summary` tool |
+| `/mcp__token-meter__recent_sessions` | `within_hours` = 1-720 (default 24) | Same as the `recent_sessions` tool |
+| `/mcp__token-meter__session_tools` | `session_id` (required) | Same as the `session_tools` tool |
+| `/mcp__token-meter__refresh_data` | — | Same as the `refresh_data` tool |
+
+Slash commands and natural-language calls both work — pick whichever is faster
+for the moment.
+
 It reads the same local SQLite database the CLI writes (`~/.tokenpulse/usage.db`,
 renamed to `~/.tokenmeter/` in a future release with an automatic migration).
 Token Meter never talks to vendor APIs.
