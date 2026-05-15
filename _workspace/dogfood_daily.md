@@ -23,7 +23,7 @@ npx -y @whdrnr2583/token-meter stats 7
 ## 매일 1회 체크 (1분)
 
 - [ ] **npm 다운로드**: https://www.npmjs.com/package/@whdrnr2583/token-meter (페이지 하단 weekly downloads)
-- [ ] **GitHub Star**: https://github.com/whdrnr2583-cmd/tokenmeter (상단 Star 카운트)
+- [ ] **GitHub Star**: https://github.com/whdrnr2583-cmd/token-meter (상단 Star 카운트)
 - [ ] **Tally 응답**: https://tally.so/forms/2E16vD/submissions
 - [ ] **Gmail `hello@token-meter.dev`**: 라우팅 응답 1건이라도?
 

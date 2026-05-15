@@ -2,6 +2,8 @@
 
 > One local dashboard for your **Claude Code** and **Codex** token usage.
 > Free, MCP-aware, MIT-licensed core.
+>
+> npm: [`@whdrnr2583/token-meter`](https://www.npmjs.com/package/@whdrnr2583/token-meter) · GitHub: [`whdrnr2583-cmd/token-meter`](https://github.com/whdrnr2583-cmd/token-meter) · Site: [token-meter.dev](https://token-meter.dev)
 
 Token Meter parses the JSONL files that Claude Code and Codex already write to
 disk and turns them into a real dashboard: cost per project, per model, per MCP
@@ -33,7 +35,7 @@ config, preserves other MCP servers. Single-client variants:
 `install-mcp claude-code | cursor | claude-desktop`. Add `--dry-run` to preview.
 
 > **Or have your LLM do it.** Open Claude Code / Cursor / Claude Desktop and ask:
-> *"Read https://raw.githubusercontent.com/whdrnr2583-cmd/tokenmeter/main/docs/mcp-server.md
+> *"Read https://raw.githubusercontent.com/whdrnr2583-cmd/token-meter/main/docs/mcp-server.md
 > and set up token-meter as my MCP server."*
 
 Manual one-liners (if you'd rather not run our installer):

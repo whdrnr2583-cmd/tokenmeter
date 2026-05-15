@@ -79,7 +79,7 @@ mcp-publisher init
     }
   ],
   "repository": {
-    "url": "https://github.com/whdrnr2583-cmd/tokenmeter",
+    "url": "https://github.com/whdrnr2583-cmd/token-meter",
     "source": "github"
   },
   "websiteUrl": "https://token-meter.dev"
@@ -140,12 +140,12 @@ mcp-publisher publish
 
 기존 entry:
 ```markdown
-- [whdrnr2583-cmd/tokenmeter](https://github.com/whdrnr2583-cmd/tokenmeter) 📇 🏠 - Local-first dashboard + MCP server for Claude Code and Codex token usage.
+- [whdrnr2583-cmd/token-meter](https://github.com/whdrnr2583-cmd/token-meter) 📇 🏠 - Local-first dashboard + MCP server for Claude Code and Codex token usage.
 ```
 
 Glama badge 포함:
 ```markdown
-- [whdrnr2583-cmd/tokenmeter](https://github.com/whdrnr2583-cmd/tokenmeter) [![smithery badge](https://glama.ai/mcp/servers/@whdrnr2583/token-meter/badge)](https://glama.ai/mcp/servers/@whdrnr2583/token-meter) 📇 🏠 - Local-first dashboard + MCP server for Claude Code and Codex token usage.
+- [whdrnr2583-cmd/token-meter](https://github.com/whdrnr2583-cmd/token-meter) [![smithery badge](https://glama.ai/mcp/servers/@whdrnr2583/token-meter/badge)](https://glama.ai/mcp/servers/@whdrnr2583/token-meter) 📇 🏠 - Local-first dashboard + MCP server for Claude Code and Codex token usage.
 ```
 
 (다른 entries의 badge 형식 cross-check 후 최종 결정)
@@ -191,7 +191,7 @@ Fork된 repo에서 `README.md` 열기 → 편집 모드 (연필 아이콘).
 해당 섹션 내에 alphabetical 위치에 다음 entry 추가 (entries는 보통 알파벳순 정렬됨):
 
 ```markdown
-- [whdrnr2583-cmd/tokenmeter](https://github.com/whdrnr2583-cmd/tokenmeter) 📇 🏠 - Local-first dashboard + MCP server for Claude Code and Codex token usage. Per-MCP/tool breakdown, session drill-down, hourly stats, USD cost estimates.
+- [whdrnr2583-cmd/token-meter](https://github.com/whdrnr2583-cmd/token-meter) 📇 🏠 - Local-first dashboard + MCP server for Claude Code and Codex token usage. Per-MCP/tool breakdown, session drill-down, hourly stats, USD cost estimates.
 ```
 
 badge 의미:
@@ -225,7 +225,7 @@ Highlights vs existing entries:
 
 npm: https://www.npmjs.com/package/@whdrnr2583/token-meter
 Site: https://token-meter.dev
-Docs: https://github.com/whdrnr2583-cmd/tokenmeter/blob/main/README.md
+Docs: https://github.com/whdrnr2583-cmd/token-meter/blob/main/README.md
 
 Placed under Monitoring (📊) — it's primarily a usage-observability tool, not a
 generic developer tool. Happy to move to a different section if maintainers

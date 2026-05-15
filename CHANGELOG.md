@@ -5,6 +5,29 @@ All notable changes to Token Meter.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.8] — 2026-05-15
+
+### Changed
+- **GitHub repository renamed** `whdrnr2583-cmd/tokenmeter` →
+  `whdrnr2583-cmd/token-meter` for naming consistency with the npm
+  package (`@whdrnr2583/token-meter`) and the domain
+  (`token-meter.dev`). GitHub auto-redirects the old URL, so existing
+  links keep working; all in-repo references and the embedded raw URLs
+  used by the "ask your LLM to set it up" path have been updated to the
+  new URL.
+- README now includes a one-line lookup row near the top:
+  npm · GitHub · site links in canonical form, so anyone copy-pasting
+  from the npm page can find the repo without guessing.
+
+### Why
+A reader reported the GitHub URL guessed from the npm scope
+(`whdrnr2583/token-meter`) returns 404 — the actual owner is
+`whdrnr2583-cmd` and the repo was `tokenmeter` (no hyphen). Trust
+hit at the discovery step. Fix is a one-time rename plus an explicit
+lookup row; no behavior change. D-035.
+
+---
+
 ## [0.1.7] — 2026-05-15
 
 ### Added

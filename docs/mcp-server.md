@@ -3,7 +3,7 @@
 > **Just ask your LLM to do this.** Open Claude Code, Cursor, Claude Desktop,
 > or any MCP-capable agent and paste:
 >
-> > *"Read https://raw.githubusercontent.com/whdrnr2583-cmd/tokenmeter/main/docs/mcp-server.md
+> > *"Read https://raw.githubusercontent.com/whdrnr2583-cmd/token-meter/main/docs/mcp-server.md
 > > and set up Token Meter as my MCP server for **\<this client\>**."*
 >
 > Every command below is copy-paste runnable. The LLM picks the right block

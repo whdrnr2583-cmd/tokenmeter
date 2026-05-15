@@ -233,7 +233,7 @@ async function main(): Promise<void> {
     console.log('Optional — register Token Meter as an MCP server:');
     console.log('  Auto:  token-meter install-mcp all   (claude-code + cursor + claude-desktop)');
     console.log('  Or:    token-meter install-mcp <claude-code|cursor|claude-desktop>');
-    console.log('  Docs:  https://github.com/whdrnr2583-cmd/tokenmeter/blob/main/docs/mcp-server.md');
+    console.log('  Docs:  https://github.com/whdrnr2583-cmd/token-meter/blob/main/docs/mcp-server.md');
     console.log('');
     console.log('Verify: TOKEN_METER_GATING=1 token-meter stats 30  (no "Free tier" warning = success)');
     return;

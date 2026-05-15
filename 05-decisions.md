@@ -864,6 +864,53 @@ github.com/<owner>/token-meter-api   ← private (라이선스 API, CF Workers +
 
 ---
 
+## D-035. GitHub repo rename — naming 함정 해소 (`tokenmeter` → `token-meter`)
+**날짜**: 2026-05-15
+**결정**: GitHub repository를 `whdrnr2583-cmd/tokenmeter` → `whdrnr2583-cmd/token-meter`로 rename. 모든 in-repo 레퍼런스 + 임베디드 raw URL 갱신. README 상단에 npm·GitHub·site 한 줄 명시 추가.
+
+**진단 (외부 발견)**:
+- 누군가 npm scope `@whdrnr2583/token-meter` 보고 GitHub URL 추론: `github.com/whdrnr2583/token-meter` → **404** (username `whdrnr2583` 비존재) + `github.com/whdrnr2583-cmd/token-meter` → **404** (repo `tokenmeter` no 하이픈)
+- 불일치 4축:
+  | 항목 | 값 |
+  |---|---|
+  | GitHub username | `whdrnr2583-cmd` (`-cmd` suffix) |
+  | GitHub repo (이전) | `tokenmeter` (no 하이픈) |
+  | npm scope | `@whdrnr2583` (no `-cmd`) |
+  | npm package | `token-meter` (with 하이픈) |
+  | 도메인 | `token-meter.dev` (with 하이픈) |
+
+**결정 사유**:
+- 발견 단계 trust hit. 검색·share·인용 시 마찰
+- GitHub auto-redirect로 기존 링크는 유지됨 → repo rename 비용 5분
+- username rename (`whdrnr2583-cmd` → `whdrnr2583`)은 보류: OAuth·token·CI secret 연쇄 깨짐 위험. ROI 음수
+- 결과: GitHub repo만 rename, README에 canonical lookup row 추가
+
+**구현**:
+- 사용자가 GitHub Settings → repo rename 직접 실행 (5분)
+- 9 파일 일괄 URL 갱신: package.json / server.json / README.md / docs/mcp-server.md / infra/site/index.html / src/cli.ts / _workspace/dogfood_daily.md / _workspace/listing_drafts.md
+- README.md 상단 1줄 추가: `npm · GitHub · site` canonical links
+- raw.githubusercontent.com URL은 redirect 안 됨 → 무조건 갱신 (4곳)
+- D-029 박제 본문 (`whdrnr2583-cmd/tokenmeter` 명시 라인) historical fact 보존, 본 박제로 cross-reference
+
+**검증**:
+- 회귀 4종 통과 (typecheck / test 40 / audit / build)
+- dist MCP 스모크 통과
+- `grep -r "whdrnr2583-cmd/tokenmeter\b"` 활성 파일에서 0건 (legacy + D-029 historical 박제 제외)
+
+**박제 학습**:
+1. **신규 프로젝트는 publish 전 naming consistency cross-check 의무**: GitHub username + repo + npm scope + npm package + domain + product name 6축 일관성 매트릭스
+2. **npm publish가 GitHub repo 이름을 lock하지 않음** — repository.url은 단순 메타데이터. rename 후 v+1 publish하면 npm 페이지도 갱신
+3. **raw.githubusercontent.com URL은 GitHub auto-redirect 무시** → repo rename 시 raw URL 별도 갱신 의무
+4. **사용자 reporter cross-check가 강한 signal** — 추측 의존을 발견의 출발점으로 두면 naming 함정 자가 발견 어려움. 외부 시도 1회로 즉시 노출됨
+
+**번복 트리거**:
+- GitHub auto-redirect가 향후 중단 (현재 spec상 영구) → 기존 링크 일괄 갱신 sweep
+- username rename 진짜 필요 시점 (해외 user 다수 confusion 보고 30+) → 별개 박제로 진입
+
+**관련 박제**: [[D-022]] 제품명 Token Meter / [[D-029]] npm scope strip 자동 매핑 (이전 박제 본문에 옛 URL 명시 — historical 보존) / [[feedback_listing_vs_discovery]] 등재 ≠ 발견 (본 fix는 discovery layer correction, 등재와 별개)
+
+---
+
 ## 향후 결정 보류 항목
 
 | 번호 | 항목 | 결정 시점 |
