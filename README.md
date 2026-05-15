@@ -22,12 +22,21 @@ npx @whdrnr2583/token-meter mcp           # run as an MCP server for Claude Code
 
 ### Connect Token Meter to your AI tool (MCP)
 
-> **Have your LLM do it for you.** Open Claude Code / Cursor / Claude Desktop and ask:
+One command registers Token Meter with every supported client on your machine:
+
+```sh
+npx -y @whdrnr2583/token-meter install-mcp all
+```
+
+Handles Claude Code, Cursor, and Claude Desktop — idempotent, backs up existing
+config, preserves other MCP servers. Single-client variants:
+`install-mcp claude-code | cursor | claude-desktop`. Add `--dry-run` to preview.
+
+> **Or have your LLM do it.** Open Claude Code / Cursor / Claude Desktop and ask:
 > *"Read https://raw.githubusercontent.com/whdrnr2583-cmd/tokenmeter/main/docs/mcp-server.md
 > and set up token-meter as my MCP server."*
-> The doc is structured so the LLM picks the right block for your OS and client.
 
-Manual one-liners:
+Manual one-liners (if you'd rather not run our installer):
 
 | Client | Command / config |
 |---|---|

@@ -31,10 +31,34 @@ Token Meter never talks to vendor APIs.
 
   ```sh
   npx -y @whdrnr2583/token-meter --version
-  # → 0.1.4 (or later)
+  # → 0.1.5 (or later)
   ```
 
   If this prints a version, you're ready. If it fails, fix Node first.
+
+## One-command setup
+
+```sh
+npx -y @whdrnr2583/token-meter install-mcp all
+```
+
+This registers Token Meter as an MCP server with **every supported client present on your machine** in one go:
+
+- **Claude Code** → runs `claude mcp add token-meter -- npx -y @whdrnr2583/token-meter mcp` for you (skipped if the `claude` CLI isn't installed).
+- **Cursor** → writes/merges `~/.cursor/mcp.json` (Windows: `%USERPROFILE%\.cursor\mcp.json`).
+- **Claude Desktop** → writes/merges the platform-specific `claude_desktop_config.json`.
+
+Idempotent (safe to re-run), backs up any existing config to `<path>.bak`, and preserves other MCP servers you already had registered. Add `--dry-run` to preview without writing.
+
+Single-client variants:
+
+```sh
+npx -y @whdrnr2583/token-meter install-mcp claude-code
+npx -y @whdrnr2583/token-meter install-mcp cursor
+npx -y @whdrnr2583/token-meter install-mcp claude-desktop
+```
+
+For ChatGPT, generic stdio clients, or to do it manually, see the per-client sections below.
 
 ---
 

@@ -7,26 +7,40 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [0.1.5] — 2026-05-15
 
+### Added
+- **`token-meter install-mcp <client>`** — one-command MCP registration.
+  Supported clients: `claude-code`, `cursor`, `claude-desktop`, `all`.
+  Add `--dry-run` to preview without writing.
+  - **Claude Code**: shells out to `claude mcp add ...` (auto-detected,
+    skipped with a clear message if the `claude` CLI isn't on PATH).
+  - **Cursor / Claude Desktop**: read/merge the platform-specific JSON
+    config (`~/.cursor/mcp.json`, macOS `~/Library/Application Support/Claude/`,
+    Windows `%APPDATA%\Claude\`, Linux `~/.config/Claude/`). Preserves
+    any existing `mcpServers` entries; writes a `<path>.bak` backup
+    before overwriting an existing file.
+  - Idempotent — re-running prints `already-present` instead of writing.
+  - `install-mcp.ts` and 7 unit tests covering create / idempotent /
+    preserve-others / update-stale / dry-run / invalid-JSON / empty-file.
+
 ### Changed
 - **MCP setup docs rewritten for self-service**. `docs/mcp-server.md`
-  now contains a copy-paste runnable block for each major client
-  (Claude Code, Cursor, Claude Desktop, ChatGPT, generic stdio) plus
-  verification commands and a troubleshooting section.
-- **README "Connect to your AI tool" table** added with a per-client
-  one-liner and a single "ask your LLM to do it" prompt that points at
-  the raw docs URL — LLMs (Claude Code, Cursor, Claude Desktop) can
-  read the doc and run the registration on the user's behalf.
-- **Landing page** (`token-meter.dev`) gained a `#connect` section with
-  the same per-client setup blocks and the LLM-driven prompt.
+  now leads with the one-command installer and falls back to per-client
+  copy-paste blocks (Claude Code, Cursor, Claude Desktop, ChatGPT,
+  generic stdio) with verification and a troubleshooting section.
+- **README "Connect to your AI tool"** points at `install-mcp all` first;
+  also keeps the LLM-driven "ask the agent to set it up" prompt and the
+  per-client manual table for users who prefer to do it themselves.
+- **Landing page** (`token-meter.dev`) `#connect` section: one-command box
+  on top, LLM-prompt box second, manual cards below.
+- `token-meter setup <key>` now points users at `install-mcp` for the
+  MCP-registration step (instead of printing raw commands inline).
 
 ### Why
-Old docs assumed Claude Code only and waved off other clients with
-"same idea". First-time users on Cursor / Claude Desktop / ChatGPT
-had no concrete path, which is a likely root cause of the dogfood
-funnel (people install Token Meter, never wire MCP, miss the value).
-
-No code changes — docs/site only. CLI version unchanged from 0.1.4
-unless a publish is cut for the landing page parity.
+First-time users on Cursor / Claude Desktop / ChatGPT had no concrete
+path before — `install-mcp` collapses the four-step manual flow
+(locate config → open with the right path per OS → merge JSON →
+restart the app) into one command, and gives LLM-driven setup
+something deterministic to call.
 
 ---
 

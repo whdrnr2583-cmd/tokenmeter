@@ -6,16 +6,19 @@ import { byMcp, byModel, byProject, daily, overview } from './stats.js';
 import { clampDaysToEntitlement, getEntitlement } from './license.js';
 
 const USAGE = `Usage:
-  token-meter ingest [--force]    Scan JSONL → SQLite
-  token-meter stats [days=30]     Print summary
-  token-meter serve               Run the dashboard at http://localhost:8765
-  token-meter mcp                 Run as an MCP server (stdio) for Claude Code / Cursor
-  token-meter activate <key>      Activate a Pro / Pro+ license
-  token-meter setup <key>         activate + add gating export to ~/.zshrc / ~/.bashrc
+  token-meter ingest [--force]              Scan JSONL → SQLite
+  token-meter stats [days=30]               Print summary
+  token-meter serve                         Run the dashboard at http://localhost:8765
+  token-meter mcp                           Run as an MCP server (stdio) for Claude Code / Cursor
+  token-meter install-mcp <client>          Register the MCP server (one of:
+                                            claude-code | cursor | claude-desktop | all)
+  token-meter activate <key>                Activate a Pro / Pro+ license
+  token-meter setup <key>                   activate + add gating export to ~/.zshrc / ~/.bashrc
 
 Flags:
-  -v, --version                   Print version
-  -h, --help                      Print this message`;
+  -v, --version                             Print version
+  -h, --help                                Print this message
+  --dry-run                                 (install-mcp only) preview changes without writing`;
 
 function getVersion(): string {
   try {
@@ -135,6 +138,43 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (cmd === 'install-mcp') {
+    const arg = rest.find((s) => !s.startsWith('--'))?.trim() ?? '';
+    const dryRun = rest.includes('--dry-run');
+    const validClients = new Set([
+      'claude-code',
+      'cursor',
+      'claude-desktop',
+      'all',
+    ]);
+    if (!validClients.has(arg)) {
+      console.error(
+        'Usage: token-meter install-mcp <claude-code|cursor|claude-desktop|all> [--dry-run]',
+      );
+      process.exit(1);
+    }
+    const { installMcp } = await import('./install-mcp.js');
+    const results = installMcp(
+      arg as 'claude-code' | 'cursor' | 'claude-desktop' | 'all',
+      { dryRun },
+    );
+    let failed = false;
+    for (const r of results) {
+      const icon =
+        r.action === 'added' || r.action === 'updated'
+          ? '✓'
+          : r.action === 'already-present'
+            ? '='
+            : r.action === 'skipped'
+              ? '–'
+              : '✗';
+      console.log(`${icon} [${r.client}] ${r.message}`);
+      if (!r.ok) failed = true;
+    }
+    if (failed) process.exit(1);
+    return;
+  }
+
   if (cmd === 'setup') {
     const key = rest.find((s) => s.startsWith('tm_')) ?? rest[0]?.trim() ?? '';
     if (!key) {
@@ -163,9 +203,9 @@ async function main(): Promise<void> {
 
     console.log('');
     console.log('Optional — register Token Meter as an MCP server:');
-    console.log('  Claude Code: claude mcp add token-meter -- npx -y @whdrnr2583/token-meter mcp');
-    console.log('  Cursor:      add to ~/.cursor/mcp.json under "mcpServers":');
-    console.log('    "token-meter": { "command": "npx", "args": ["-y", "@whdrnr2583/token-meter", "mcp"] }');
+    console.log('  Auto:  token-meter install-mcp all   (claude-code + cursor + claude-desktop)');
+    console.log('  Or:    token-meter install-mcp <claude-code|cursor|claude-desktop>');
+    console.log('  Docs:  https://github.com/whdrnr2583-cmd/tokenmeter/blob/main/docs/mcp-server.md');
     console.log('');
     console.log('Verify: TOKEN_METER_GATING=1 token-meter stats 30  (no "Free tier" warning = success)');
     return;

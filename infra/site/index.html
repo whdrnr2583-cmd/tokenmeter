@@ -83,13 +83,18 @@ token-meter ingest &amp;&amp; token-meter serve</pre>
       </p>
 
       <div class="llm-box">
-        <h3>🤖 Easiest: have your LLM set it up</h3>
-        <p>Open Claude Code, Cursor, or Claude Desktop and paste:</p>
-        <pre class="code">Read https://raw.githubusercontent.com/whdrnr2583-cmd/tokenmeter/main/docs/mcp-server.md and set up Token Meter as my MCP server.</pre>
-        <p class="hint">The doc is structured so the LLM picks the right block for your OS and client, runs the registration command, and verifies it.</p>
+        <h3>🚀 Easiest: one command</h3>
+        <pre class="code">npx -y @whdrnr2583/token-meter install-mcp all</pre>
+        <p class="hint">Registers Claude Code + Cursor + Claude Desktop in one go. Idempotent, backs up existing config, preserves your other MCP servers. Add <code>--dry-run</code> to preview.</p>
       </div>
 
-      <h3 class="connect-manual">Or set it up yourself (30 seconds)</h3>
+      <div class="llm-box" style="margin-top: 16px;">
+        <h3>🤖 Or let your LLM handle it</h3>
+        <p>Open Claude Code / Cursor / Claude Desktop and paste:</p>
+        <pre class="code">Read https://raw.githubusercontent.com/whdrnr2583-cmd/tokenmeter/main/docs/mcp-server.md and set up Token Meter as my MCP server.</pre>
+      </div>
+
+      <h3 class="connect-manual">Or set it up by hand</h3>
       <div class="connect-grid">
         <article>
           <h4>Claude Code</h4>
