@@ -15,6 +15,7 @@
       <a href="/" class="brand">Token Meter</a>
       <nav>
         <a href="#features">Features</a>
+        <a href="#connect">Connect (MCP)</a>
         <a href="#pricing">Pricing</a>
         <a href="https://github.com/whdrnr2583-cmd/tokenmeter" target="_blank" rel="noreferrer">GitHub</a>
         <a href="https://www.npmjs.com/package/@whdrnr2583/token-meter" target="_blank" rel="noreferrer">npm</a>
@@ -71,6 +72,60 @@ token-meter ingest &amp;&amp; token-meter serve</pre>
           <p>Threshold rules with desktop, email, and webhook actions. Pipe into Slack, Discord, n8n — your call.</p>
         </article>
       </div>
+    </section>
+
+    <section id="connect" class="connect">
+      <h2>Connect to your AI tool</h2>
+      <p class="connect-intro">
+        Token Meter ships an <strong>MCP server</strong> — once registered, your AI tool can ask
+        <em>"this week's spend"</em>, <em>"recent sessions to resume"</em>, <em>"why was session X expensive"</em>
+        without you opening the dashboard.
+      </p>
+
+      <div class="llm-box">
+        <h3>🤖 Easiest: have your LLM set it up</h3>
+        <p>Open Claude Code, Cursor, or Claude Desktop and paste:</p>
+        <pre class="code">Read https://raw.githubusercontent.com/whdrnr2583-cmd/tokenmeter/main/docs/mcp-server.md and set up Token Meter as my MCP server.</pre>
+        <p class="hint">The doc is structured so the LLM picks the right block for your OS and client, runs the registration command, and verifies it.</p>
+      </div>
+
+      <h3 class="connect-manual">Or set it up yourself (30 seconds)</h3>
+      <div class="connect-grid">
+        <article>
+          <h4>Claude Code</h4>
+          <pre class="code">claude mcp add token-meter -- \
+  npx -y @whdrnr2583/token-meter mcp</pre>
+          <p class="hint">Verify with <code>claude mcp list</code>.</p>
+        </article>
+        <article>
+          <h4>Cursor</h4>
+          <p>Edit <code>~/.cursor/mcp.json</code> (Windows: <code>%USERPROFILE%\.cursor\mcp.json</code>):</p>
+          <pre class="code">{
+  "mcpServers": {
+    "token-meter": {
+      "command": "npx",
+      "args": ["-y", "@whdrnr2583/token-meter", "mcp"]
+    }
+  }
+}</pre>
+          <p class="hint">Restart Cursor → Settings → MCP shows green.</p>
+        </article>
+        <article>
+          <h4>Claude Desktop</h4>
+          <p>Edit <code>claude_desktop_config.json</code> with the same JSON as Cursor.</p>
+          <p class="hint">Path: <code>~/Library/Application Support/Claude/</code> (mac), <code>%APPDATA%\Claude\</code> (Windows). Fully quit and reopen.</p>
+        </article>
+        <article>
+          <h4>ChatGPT / Other</h4>
+          <p>ChatGPT requires HTTP — wrap with <code>mcpo</code> (community recipe). Direct stdio works with Continue, Zed, any MCP client:</p>
+          <pre class="code">npx -y @whdrnr2583/token-meter mcp</pre>
+        </article>
+      </div>
+
+      <p class="connect-docs">
+        Full guide with verification + troubleshooting:
+        <a href="https://github.com/whdrnr2583-cmd/tokenmeter/blob/main/docs/mcp-server.md" target="_blank" rel="noreferrer">docs/mcp-server.md</a>
+      </p>
     </section>
 
     <section id="pricing" class="pricing">

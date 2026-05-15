@@ -5,6 +5,31 @@ All notable changes to Token Meter.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] — 2026-05-15
+
+### Changed
+- **MCP setup docs rewritten for self-service**. `docs/mcp-server.md`
+  now contains a copy-paste runnable block for each major client
+  (Claude Code, Cursor, Claude Desktop, ChatGPT, generic stdio) plus
+  verification commands and a troubleshooting section.
+- **README "Connect to your AI tool" table** added with a per-client
+  one-liner and a single "ask your LLM to do it" prompt that points at
+  the raw docs URL — LLMs (Claude Code, Cursor, Claude Desktop) can
+  read the doc and run the registration on the user's behalf.
+- **Landing page** (`token-meter.dev`) gained a `#connect` section with
+  the same per-client setup blocks and the LLM-driven prompt.
+
+### Why
+Old docs assumed Claude Code only and waved off other clients with
+"same idea". First-time users on Cursor / Claude Desktop / ChatGPT
+had no concrete path, which is a likely root cause of the dogfood
+funnel (people install Token Meter, never wire MCP, miss the value).
+
+No code changes — docs/site only. CLI version unchanged from 0.1.4
+unless a publish is cut for the landing page parity.
+
+---
+
 ## [0.1.4] — 2026-05-15
 
 ### Added

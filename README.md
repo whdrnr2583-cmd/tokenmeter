@@ -20,25 +20,30 @@ npx @whdrnr2583/token-meter mcp           # run as an MCP server for Claude Code
 > bare `token-meter` name collides with an existing similar name on npm. The
 > CLI binary is still called `token-meter` after install.
 
-### Register the MCP server with Claude Code
+### Connect Token Meter to your AI tool (MCP)
 
-```sh
-claude mcp add token-meter -- npx -y @whdrnr2583/token-meter mcp
-```
+> **Have your LLM do it for you.** Open Claude Code / Cursor / Claude Desktop and ask:
+> *"Read https://raw.githubusercontent.com/whdrnr2583-cmd/tokenmeter/main/docs/mcp-server.md
+> and set up token-meter as my MCP server."*
+> The doc is structured so the LLM picks the right block for your OS and client.
 
-Then ask Claude Code: *"Use token-meter to show my recent sessions"* or
-*"Use token-meter usage_summary for this week"*. See
-[docs/mcp-server.md](docs/mcp-server.md).
+Manual one-liners:
+
+| Client | Command / config |
+|---|---|
+| **Claude Code** | `claude mcp add token-meter -- npx -y @whdrnr2583/token-meter mcp` then `claude mcp list` to verify |
+| **Cursor** | Edit `~/.cursor/mcp.json` (Windows: `%USERPROFILE%\.cursor\mcp.json`) — see [docs/mcp-server.md](docs/mcp-server.md#cursor) |
+| **Claude Desktop** | Edit `claude_desktop_config.json` — see [docs/mcp-server.md](docs/mcp-server.md#claude-desktop) |
+| **ChatGPT** | Stdio-only for now; HTTP wrapper recipe in [docs/mcp-server.md](docs/mcp-server.md#chatgpt-custom-connector--apps) |
+| **Other (Continue, Zed, custom)** | `npx -y @whdrnr2583/token-meter mcp` over stdio |
+
+Then ask: *"Use token-meter to show my recent sessions"* or *"Use token-meter usage_summary for this week"*.
+
+Full setup + verification + troubleshooting: **[docs/mcp-server.md](docs/mcp-server.md)**.
 
 Storage: `~/.tokenpulse/usage.db` (SQLite). Remove the folder to start over.
 The folder name will become `~/.tokenmeter/` in a future release with an
 automatic migration; until then the v0.1 directory keeps its original name.
-
-### MCP server
-
-`token-meter mcp` exposes `usage_summary`, `recent_sessions` (handy after you
-accidentally close a terminal), `session_tools`, and `refresh_data`. See
-[docs/mcp-server.md](docs/mcp-server.md).
 
 ## What you see
 

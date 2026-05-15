@@ -164,6 +164,94 @@ section { padding: 80px 32px; max-width: 1100px; margin: 0 auto; }
   color: var(--accent-2);
 }
 
+.connect {
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.connect h2 {
+  text-align: center;
+  font-size: 28px;
+  margin: 0 0 16px;
+  letter-spacing: -0.01em;
+}
+.connect-intro {
+  text-align: center;
+  color: var(--muted);
+  max-width: 720px;
+  margin: 0 auto 40px;
+  font-size: 15px;
+}
+.llm-box {
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 760px;
+  margin: 0 auto 48px;
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.llm-box h3 {
+  margin: 0 0 8px;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+.llm-box p { color: var(--muted); margin: 0 0 12px; font-size: 14px; }
+.llm-box .code {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.connect-manual {
+  text-align: center;
+  font-size: 18px;
+  margin: 0 0 24px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.connect-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+.connect-grid article {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+}
+.connect-grid h4 {
+  font-size: 15px;
+  margin: 0 0 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+.connect-grid p { color: var(--muted); margin: 0 0 10px; font-size: 13px; }
+.connect-grid code {
+  background: var(--panel-2);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--accent-2);
+}
+.connect-grid .code {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+.connect-docs {
+  text-align: center;
+  margin: 40px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
 .pricing .tiers {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
