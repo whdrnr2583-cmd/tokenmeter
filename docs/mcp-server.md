@@ -25,7 +25,7 @@ MCP prompts (Claude Code, Cursor, Claude Desktop):
 |---|---|---|
 | `/mcp__token-meter__usage_summary` | `period` = `today` \| `week` \| `month` (default `today`) | Same as the `usage_summary` tool |
 | `/mcp__token-meter__recent_sessions` | `within_hours` = 1-720 (default 24) | Same as the `recent_sessions` tool |
-| `/mcp__token-meter__session_tools` | `session_id` (required) | Same as the `session_tools` tool |
+| `/mcp__token-meter__session_tools` | `session_id` (required), `limit` = 1-100 (default 20) | Same as the `session_tools` tool |
 | `/mcp__token-meter__refresh_data` | — | Same as the `refresh_data` tool |
 
 Slash commands and natural-language calls both work — pick whichever is faster
@@ -259,16 +259,12 @@ Ask your agent: *"Use token-meter to show my recent sessions."*
 
 ```
 Recent sessions (last 24h) — newest first:
-
-• 12m ago — claude-code — $1.42 — 86 events
-  project: C:\Users\you\projects\app
+• 12m ago | claude-code | $1.42 | 86 ev
   session: 1f4f193b-16fb-4afa-ad0f-3e35483d81a7
-  resume:  cd "C:\Users\you\projects\app" && claude --resume
-
-• 3h 5m ago — codex — $0.18 — 19 events
-  project: C:\Users\you\projects\api
+  resume: cd "C:\Users\you\projects\app" && claude --resume
+• 3h 5m ago | codex | $0.18 | 19 ev
   session: 019e1194-a487-7b03-bffc-16a3cf332708
-  resume:  cd "C:\Users\you\projects\api" && codex resume
+  resume: cd "C:\Users\you\projects\api" && codex resume
 ```
 
 Then `cd` into the project and run the resume command — your conversation history is intact (Claude Code and Codex persist it to disk).
@@ -278,11 +274,10 @@ Then `cd` into the project and run the resume command — your conversation hist
 *"Use token-meter `session_tools` for session 1f4f193b-…"* →
 
 ```
-Tools used in session 1f4f193b-…:
-
-  mcp__notion__notion_search       mcp:notion    calls= 12  resp= 148.0k  avg_latency=4200ms
-  Bash                             built-in      calls= 45  resp=  38.0k  avg_latency=2100ms
-  Read                             built-in      calls= 88  resp= 120.0k  avg_latency= 180ms
+Tools used in session 1f4f193b-… (by response tokens):
+  mcp__notion__notion_search (mcp:notion) calls=12 resp=148.0k avg=4200ms
+  Read (built-in) calls=88 resp=120.0k avg=180ms
+  Bash (built-in) calls=45 resp=38.0k avg=2100ms
 ```
 
 → Notion MCP responses are large; consider trimming the fields you request.

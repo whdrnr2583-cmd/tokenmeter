@@ -40,10 +40,21 @@ export async function startMcpServer(): Promise<void> {
     version: '0.1.0',
   });
 
-  server.tool(
+  server.registerTool(
     'usage_summary',
-    'Quick spend + token summary for Claude Code and Codex over a period. Reads local Token Meter data; never touches vendor APIs.',
-    { period: z.enum(['today', 'week', 'month']).default('today') },
+    {
+      title: 'Token Meter — usage summary',
+      description:
+        'API-equivalent spend + token summary for Claude Code and Codex, by model/project/tool. Local data only.',
+      inputSchema: { period: z.enum(['today', 'week', 'month']).default('today') },
+      annotations: {
+        title: 'Token Meter — usage summary',
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
     async ({ period }) => {
       const days = periodDays(period);
       const o = overview(db, days);
@@ -52,38 +63,44 @@ export async function startMcpServer(): Promise<void> {
       const mcps = byMcp(db, days, 5);
       const lines = [
         `Token Meter — last ${period === 'today' ? '24h' : period === 'week' ? '7d' : '30d'}`,
-        `Estimated API-equivalent cost: ${fmtUsd(o.total_usd)}`,
-        `Events: ${o.events.toLocaleString()} | output ${fmtTok(o.total_output)} | cache read ${fmtTok(o.total_cache_read)}`,
-        '',
+        `cost ${fmtUsd(o.total_usd)} (API-equiv) | events ${o.events.toLocaleString()} | output ${fmtTok(o.total_output)} | cache-read ${fmtTok(o.total_cache_read)}`,
         'By model:',
-        ...models.map((m) => `  ${m.model.padEnd(24)} ${fmtUsd(m.usd).padStart(10)}  (${m.events} events)`),
-        '',
+        ...models.map((m) => `  ${m.model} ${fmtUsd(m.usd)} (${m.events} ev)`),
         'Top projects:',
         ...projects.map((p) => {
           const name = p.project.length > 50 ? '…' + p.project.slice(-50) : p.project;
-          return `  ${name}  ${fmtUsd(p.usd)}`;
+          return `  ${name} ${fmtUsd(p.usd)}`;
         }),
-        '',
         'Top MCP / tools (by response tokens):',
         ...(mcps.length > 0
           ? mcps.map((m) => {
               const where = m.mcp_server ? `mcp:${m.mcp_server}` : 'built-in';
-              return `  ${where.padEnd(14)} ${m.tool_name.padEnd(28)} calls=${String(m.calls).padStart(4)}  resp=${fmtTok(m.total_response_tokens).padStart(7)}  avg=${Math.round(m.avg_latency_ms)}ms`;
+              return `  ${where} ${m.tool_name} calls=${m.calls} resp=${fmtTok(m.total_response_tokens)} avg=${Math.round(m.avg_latency_ms)}ms`;
             })
-          : ['  (no tool calls recorded in this window)']),
-        '',
-        'Note: cost is API-equivalent; if you are on a Max/Pro flat plan you pay your subscription, not this.',
+          : ['  (none in window)']),
+        'Note: API-equivalent cost; on a Max/Pro flat plan you pay your subscription, not this.',
       ];
       return { content: [{ type: 'text', text: lines.join('\n') }] };
     },
   );
 
-  server.tool(
+  server.registerTool(
     'recent_sessions',
-    'List Claude Code / Codex sessions with activity in the recent window — useful when you accidentally closed a terminal and want to resume. To resume: cd into the project dir and run `claude --resume` (or `codex resume`).',
     {
-      within_hours: z.number().int().min(1).max(720).default(24),
-      limit: z.number().int().min(1).max(50).default(15),
+      title: 'Token Meter — recent sessions',
+      description:
+        'List recently-active Claude Code / Codex sessions with ready-to-paste resume commands.',
+      inputSchema: {
+        within_hours: z.number().int().min(1).max(720).default(24),
+        limit: z.number().int().min(1).max(50).default(15),
+      },
+      annotations: {
+        title: 'Token Meter — recent sessions',
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async ({ within_hours, limit }) => {
       const rows = recentSessions(db, within_hours, limit);
@@ -96,46 +113,75 @@ export async function startMcpServer(): Promise<void> {
       }
       const lines = [
         `Recent sessions (last ${within_hours}h) — newest first:`,
-        '',
         ...rows.map((r) => {
           const tool = r.source === 'claude-code' ? 'claude --resume' : 'codex resume';
           return [
-            `• ${ageStr(r.age_minutes)} — ${r.source} — ${fmtUsd(r.total_usd)} — ${r.events} events`,
-            `  project: ${r.project}`,
+            `• ${ageStr(r.age_minutes)} | ${r.source} | ${fmtUsd(r.total_usd)} | ${r.events} ev`,
             `  session: ${r.session_id}`,
-            `  resume:  cd "${r.project}" && ${tool}`,
+            `  resume: cd "${r.project}" && ${tool}`,
           ].join('\n');
-        }),
-      ];
-      return { content: [{ type: 'text', text: lines.join('\n\n') }] };
-    },
-  );
-
-  server.tool(
-    'session_tools',
-    'Show which MCP servers / built-in tools a given session used, with call counts, response sizes, and average latency. Helps debug "why was this session expensive/slow".',
-    { session_id: z.string().min(1) },
-    async ({ session_id }) => {
-      const summary = sessionToolSummary(db, session_id);
-      if (summary.length === 0) {
-        return { content: [{ type: 'text', text: `No tool calls recorded for session ${session_id}.` }] };
-      }
-      const lines = [
-        `Tools used in session ${session_id}:`,
-        '',
-        ...summary.map((s) => {
-          const mcp = s.mcp_server ? `mcp:${s.mcp_server}` : 'built-in';
-          return `  ${s.tool_name.padEnd(40)} ${mcp.padEnd(16)} calls=${String(s.calls).padStart(4)}  resp=${fmtTok(s.total_response_tokens).padStart(8)}  avg_latency=${Math.round(s.avg_latency_ms)}ms`;
         }),
       ];
       return { content: [{ type: 'text', text: lines.join('\n') }] };
     },
   );
 
-  server.tool(
+  server.registerTool(
+    'session_tools',
+    {
+      title: 'Token Meter — session tools',
+      description:
+        'Per-session MCP / built-in tool breakdown: call counts, response sizes, average latency. Debug a slow/expensive session.',
+      inputSchema: {
+        session_id: z.string().min(1),
+        limit: z.number().int().min(1).max(100).default(20),
+      },
+      annotations: {
+        title: 'Token Meter — session tools',
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ session_id, limit }) => {
+      const summary = sessionToolSummary(db, session_id);
+      if (summary.length === 0) {
+        return { content: [{ type: 'text', text: `No tool calls recorded for session ${session_id}.` }] };
+      }
+      const shown = summary.slice(0, limit);
+      const lines = [
+        `Tools used in session ${session_id} (by response tokens):`,
+        ...shown.map((s) => {
+          const mcp = s.mcp_server ? `mcp:${s.mcp_server}` : 'built-in';
+          return `  ${s.tool_name} (${mcp}) calls=${s.calls} resp=${fmtTok(s.total_response_tokens)} avg=${Math.round(s.avg_latency_ms)}ms`;
+        }),
+        ...(summary.length > shown.length
+          ? [`  …+${summary.length - shown.length} more (raise limit to see all)`]
+          : []),
+      ];
+      return { content: [{ type: 'text', text: lines.join('\n') }] };
+    },
+  );
+
+  server.registerTool(
     'refresh_data',
-    'Re-scan ~/.claude/projects and ~/.codex/sessions to pick up new activity. Run this before other tools if you need up-to-the-minute numbers.',
-    {},
+    {
+      title: 'Token Meter — refresh data',
+      description:
+        'Re-scan local Claude Code / Codex JSONL for new activity. Run before other tools for up-to-the-minute numbers.',
+      inputSchema: {},
+      // Not read-only: writes newly-discovered token/tool rows into the local
+      // SQLite DB. Insert-only (INSERT OR IGNORE, D-027 dedup) so it is
+      // non-destructive and idempotent on re-run. Local files only — no vendor APIs.
+      annotations: {
+        title: 'Token Meter — refresh data',
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
     async () => {
       const r = ingestAll(db);
       return {
@@ -212,19 +258,24 @@ export async function startMcpServer(): Promise<void> {
       description: 'Show MCP / built-in tool breakdown for a specific session_id.',
       argsSchema: {
         session_id: z.string().describe('the session_id to inspect'),
+        limit: z.string().optional().describe('max tools to list, 1-100 (default: 20)'),
       },
     },
-    ({ session_id }) => ({
-      messages: [
-        {
-          role: 'user',
-          content: {
-            type: 'text',
-            text: `Call the token-meter session_tools tool with session_id="${session_id}". Highlight which tools dominated by call count, response size, or average latency.`,
+    ({ session_id, limit }) => {
+      const parsed = limit ? parseInt(limit, 10) : 20;
+      const n = Number.isFinite(parsed) && parsed >= 1 && parsed <= 100 ? parsed : 20;
+      return {
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `Call the token-meter session_tools tool with session_id="${session_id}" and limit=${n}. Highlight which tools dominated by call count, response size, or average latency.`,
+            },
           },
-        },
-      ],
-    }),
+        ],
+      };
+    },
   );
 
   server.registerPrompt(

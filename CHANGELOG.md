@@ -5,6 +5,37 @@ All notable changes to Token Meter.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.9] — 2026-05-16
+
+### Changed
+- **MCP tool annotations** — all four MCP tools (`usage_summary`,
+  `recent_sessions`, `session_tools`, `refresh_data`) now register via
+  `registerTool` with explicit `annotations` (`readOnlyHint`,
+  `destructiveHint`, `idempotentHint`, `openWorldHint`) and a `title`.
+  The three query tools are `readOnlyHint: true`; `refresh_data` is
+  `readOnlyHint: false` (it writes newly-discovered rows) but
+  `destructiveHint: false` + `idempotentHint: true` since it is
+  insert-only (`INSERT OR IGNORE`, D-027 dedup) and never touches vendor
+  APIs (`openWorldHint: false`). This lets MCP clients show accurate
+  safety labels and skip needless confirmations for read-only calls.
+- **Token-efficient MCP output** — tool responses are now compact:
+  removed padding/blank-line scaffolding, collapsed multi-line rows into
+  single lines, and shortened the standing notes. Same information,
+  fewer tokens per call — so an LLM querying Token Meter spends less of
+  its own context window on the result. `session_tools` also gained a
+  `limit` param (default 20) with a `…+N more` overflow hint so a
+  session with many tools no longer returns an unbounded wall of text.
+
+### Why
+H3 (annotations) makes Token Meter a well-behaved MCP citizen — clients
+can present read-only tools without scary confirmation prompts. H2
+(output audit) keeps the tool useful inside an agent loop: a verbose
+tool response is a hidden tax on the caller's token budget, which is
+exactly the cost Token Meter exists to surface. No behavior change to
+parsing, pricing, or the dashboard.
+
+---
+
 ## [0.1.8] — 2026-05-15
 
 ### Changed
