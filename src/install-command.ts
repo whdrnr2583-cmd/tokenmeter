@@ -70,7 +70,7 @@ allowed-tools: mcp__token-meter__usage_summary, mcp__token-meter__recent_session
   npx @whdrnr2583/token-meter stats 7  CLI 7일 요약
   npx @whdrnr2583/token-meter serve    대시보드 http://localhost:8765
 
-Pro \$5/월 — 세션 드릴다운 · 비용 예측·페이스 · CSV/JSON export · 커스텀 가격 매트릭스
+Pro \$5/월 — 세션 드릴다운 · 캐시 효율 분석 · 낭비 신호 · 30일 히스토리
   → https://token-meter.dev
 ──────────────────────────────────
 \`\`\`

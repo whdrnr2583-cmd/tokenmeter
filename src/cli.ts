@@ -2,8 +2,22 @@
 import { readFileSync } from 'node:fs';
 import { migrate, openDb } from './db.js';
 import { ingestAll } from './ingest.js';
-import { byMcp, byModel, byProject, daily, overview } from './stats.js';
-import { clampDaysToEntitlement, getEntitlement } from './license.js';
+import {
+  byMcp,
+  byModel,
+  byProject,
+  cacheStats,
+  daily,
+  overview,
+  wasteSignals,
+} from './stats.js';
+import {
+  clampDaysToEntitlement,
+  getEntitlement,
+  isProTier,
+  tierLabel,
+  type Tier,
+} from './license.js';
 
 const USAGE = `Usage:
   token-meter ingest [--force]              Scan JSONL → SQLite
@@ -34,7 +48,7 @@ function getVersion(): string {
 }
 
 function fmtUsd(n: number): string {
-  return `$${n.toFixed(4)}`;
+  return `$${n.toFixed(2)}`;
 }
 
 function fmtTokens(n: number): string {
@@ -43,9 +57,20 @@ function fmtTokens(n: number): string {
   return n.toString();
 }
 
-function printOverview(db: ReturnType<typeof openDb>, days: number): void {
+/** Build a fixed-width row; negative width = left-align, positive = right-align. */
+function row(cells: Array<[string, number]>): string {
+  return cells
+    .map(([v, w]) => (w < 0 ? v.padEnd(-w) : v.padStart(w)))
+    .join('  ');
+}
+
+function printOverview(
+  db: ReturnType<typeof openDb>,
+  days: number,
+  tier: Tier,
+): void {
   const o = overview(db, days);
-  console.log(`\n=== Last ${days} days ===`);
+  console.log(`\n=== Last ${days} days · ${tierLabel(tier)} tier ===`);
   console.log(`Events:        ${o.events}`);
   console.log(`Input tokens:  ${fmtTokens(o.total_input)}`);
   console.log(`Output tokens: ${fmtTokens(o.total_output)}`);
@@ -57,12 +82,26 @@ function printOverview(db: ReturnType<typeof openDb>, days: number): void {
 function printDaily(db: ReturnType<typeof openDb>, days: number): void {
   const rows = daily(db, days);
   console.log(`\n=== Daily (${days}d) ===`);
-  console.log('day         usd        input    output   cache_r  events');
+  console.log(
+    row([
+      ['day', -10],
+      ['usd', 9],
+      ['input', 8],
+      ['output', 8],
+      ['cache_r', 8],
+      ['events', 6],
+    ]),
+  );
   for (const r of rows) {
     console.log(
-      `${r.day}  ${fmtUsd(r.usd).padStart(9)}  ` +
-        `${fmtTokens(r.input).padStart(7)}  ${fmtTokens(r.output).padStart(7)}  ` +
-        `${fmtTokens(r.cache_read).padStart(7)}  ${String(r.events).padStart(5)}`,
+      row([
+        [r.day, -10],
+        [fmtUsd(r.usd), 9],
+        [fmtTokens(r.input), 8],
+        [fmtTokens(r.output), 8],
+        [fmtTokens(r.cache_read), 8],
+        [String(r.events), 6],
+      ]),
     );
   }
 }
@@ -70,10 +109,22 @@ function printDaily(db: ReturnType<typeof openDb>, days: number): void {
 function printByModel(db: ReturnType<typeof openDb>, days: number): void {
   const rows = byModel(db, days);
   console.log(`\n=== By model (${days}d) ===`);
+  console.log(
+    row([
+      ['model', -28],
+      ['usd', 10],
+      ['output', 8],
+      ['events', 7],
+    ]),
+  );
   for (const r of rows) {
     console.log(
-      `${r.model.padEnd(28)} ${fmtUsd(r.usd).padStart(9)}  ` +
-        `out=${fmtTokens(r.output).padStart(7)}  events=${r.events}`,
+      row([
+        [r.model, -28],
+        [fmtUsd(r.usd), 10],
+        [fmtTokens(r.output), 8],
+        [String(r.events), 7],
+      ]),
     );
   }
 }
@@ -81,10 +132,22 @@ function printByModel(db: ReturnType<typeof openDb>, days: number): void {
 function printByProject(db: ReturnType<typeof openDb>, days: number): void {
   const rows = byProject(db, days);
   console.log(`\n=== By project (${days}d, top ${rows.length}) ===`);
+  console.log(
+    row([
+      ['project', -38],
+      ['usd', 10],
+      ['events', 7],
+    ]),
+  );
   for (const r of rows) {
-    const name = r.project.length > 45 ? '…' + r.project.slice(-44) : r.project;
+    const name =
+      r.project.length > 38 ? '…' + r.project.slice(-37) : r.project;
     console.log(
-      `${name.padEnd(46)} ${fmtUsd(r.usd).padStart(9)}  events=${r.events}`,
+      row([
+        [name, -38],
+        [fmtUsd(r.usd), 10],
+        [String(r.events), 7],
+      ]),
     );
   }
 }
@@ -92,15 +155,93 @@ function printByProject(db: ReturnType<typeof openDb>, days: number): void {
 function printByMcp(db: ReturnType<typeof openDb>, days: number): void {
   const rows = byMcp(db, days);
   console.log(`\n=== MCP & tools (${days}d, top ${rows.length}) ===`);
-  console.log('mcp           tool                                  calls  resp_tok  avg_latency');
+  console.log(
+    row([
+      ['mcp', -13],
+      ['tool', -38],
+      ['calls', 6],
+      ['resp_tok', 9],
+      ['latency', 9],
+    ]),
+  );
   for (const r of rows) {
-    const mcp = (r.mcp_server ?? '-').padEnd(13);
-    const tool = r.tool_name.length > 36 ? r.tool_name.slice(0, 36) : r.tool_name;
+    const tool =
+      r.tool_name.length > 38
+        ? r.tool_name.slice(0, 37) + '…'
+        : r.tool_name;
     console.log(
-      `${mcp} ${tool.padEnd(38)} ${String(r.calls).padStart(5)}  ` +
-        `${fmtTokens(r.total_response_tokens).padStart(8)}  ` +
-        `${Math.round(r.avg_latency_ms)}ms`,
+      row([
+        [r.mcp_server ?? '-', -13],
+        [tool, -38],
+        [String(r.calls), 6],
+        [fmtTokens(r.total_response_tokens), 9],
+        [`${Math.round(r.avg_latency_ms)}ms`, 9],
+      ]),
     );
+  }
+}
+
+function printCacheEfficiency(
+  db: ReturnType<typeof openDb>,
+  days: number,
+): void {
+  const c = cacheStats(db, days);
+  console.log(`\n=== Cache efficiency (${days}d) ===`);
+  console.log(
+    `Hit ratio:     ${(c.hit_ratio * 100).toFixed(1)}%  (cache reads / read-side tokens)`,
+  );
+  console.log(
+    `Cache savings: ${fmtUsd(c.savings_usd)}  (gross — reads billed at cache rate, not input)`,
+  );
+  console.log(
+    `Write cost:    ${fmtUsd(c.write_cost_usd)}  (spent creating caches)`,
+  );
+  const sign = c.net_usd >= 0 ? '+' : '-';
+  console.log(`Net:           ${sign}$${Math.abs(c.net_usd).toFixed(2)}`);
+}
+
+function printWasteSignals(
+  db: ReturnType<typeof openDb>,
+  days: number,
+): void {
+  const w = wasteSignals(db, days);
+  console.log(`\n=== Waste signals (${days}d) ===`);
+  if (w.tool_outliers.length === 0 && w.cache_waste_days.length === 0) {
+    console.log(
+      'Nothing stands out — no oversized tool responses or unused cache writes.',
+    );
+    return;
+  }
+  if (w.tool_outliers.length > 0) {
+    console.log("Oversized tool responses (one call ≫ the tool's average):");
+    console.log(
+      row([
+        ['  tool', -30],
+        ['calls', 7],
+        ['avg_tok', 9],
+        ['max_tok', 9],
+      ]),
+    );
+    for (const t of w.tool_outliers) {
+      const full = (t.mcp_server ? `${t.mcp_server}/` : '') + t.tool_name;
+      const name = full.length > 28 ? `${full.slice(0, 27)}…` : full;
+      console.log(
+        row([
+          [`  ${name}`, -30],
+          [String(t.calls), 7],
+          [fmtTokens(t.avg_tokens), 9],
+          [fmtTokens(t.max_tokens), 9],
+        ]),
+      );
+    }
+  }
+  if (w.cache_waste_days.length > 0) {
+    console.log('Cache-write-without-payoff days (wrote more than read back):');
+    for (const d of w.cache_waste_days) {
+      console.log(
+        `  ${d.day}   write ${fmtTokens(d.cache_write)}  >  read ${fmtTokens(d.cache_read)}`,
+      );
+    }
   }
 }
 
@@ -270,21 +411,29 @@ async function main(): Promise<void> {
     const ent = getEntitlement();
     const days = clampDaysToEntitlement(requested, ent.tier);
     if (days < requested) {
-      const tierLabel = ent.tier === 'free' ? 'Free' : 'Pro';
       const nextTip =
         ent.tier === 'free'
           ? 'Pro shows 30 days, Pro+ shows everything.'
           : 'Pro+ shows everything.';
       console.error(
-        `[${tierLabel} tier] history clamped to ${days} days (requested ${requested}). ` +
+        `[${tierLabel(ent.tier)} tier] history clamped to ${days} days (requested ${requested}). ` +
           `${nextTip} See https://token-meter.dev#pricing`,
       );
     }
-    printOverview(db, days);
+    printOverview(db, days, ent.tier);
     printDaily(db, days);
     printByModel(db, days);
     printByProject(db, days);
     printByMcp(db, days);
+    if (isProTier(ent.tier)) {
+      printCacheEfficiency(db, days);
+      printWasteSignals(db, days);
+    } else {
+      console.log(
+        '\n[Free tier] Cache efficiency + waste signals are Pro — ' +
+          'see https://token-meter.dev#pricing',
+      );
+    }
     return;
   }
 

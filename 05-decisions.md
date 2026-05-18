@@ -911,6 +911,164 @@ github.com/<owner>/token-meter-api   ← private (라이선스 API, CF Workers +
 
 ---
 
+## D-036. Attribution accuracy 개선 설계 — dual-home·프로젝트·subagent 3축 + 출력 규격 (build 보류)
+**날짜**: 2026-05-17
+**결정**: 아래 3축 attribution(귀속) 한계를 **0.2.0 "attribution accuracy" 한 묶음**으로 개선하되,
+**build는 PMF 게이트 통과 후로 보류**. 본 항목은 그때 착수할 설계를 미리 박제.
+
+**배경**: 2026-05-17 dogfood 점검 세션에서 token-meter 자체 데이터로 한계 3건 발견.
+- **dual-home**: ingest를 `cmd.exe`(Windows home)로 돌려 실사용(WSL home)을 100배+ 과소집계
+  (5/17 실측 $0.29 vs 실제 $285.84). dogfood 절차를 WSL 우선으로 수정해 임시 대응했으나
+  제품 차원 한계 잔존. (`_workspace/dogfood_daily.md` 5/17 행 참조)
+- **프로젝트 분해**: `project = 세션 cwd`인데 사용자가 mono-cwd 습관 → 전 프로젝트가
+  한 버킷($5365/8686ev). 경쟁표상 "프로젝트별 분해"가 Free 차별점인데 사실상 무력.
+- **subagent 구분 불가**: `tool_events`에 subagent 종류 컬럼 없음. 원본 JSONL엔
+  `subagent_type` 존재(general-purpose·krx-trader·ops-monitor·risk-auditor 등 확인).
+
+**핵심 통찰**: 셋 다 같은 뿌리 — 기록 단위가 굵고, 고칠 정보는 **이미 JSONL 안에 있음**.
+공통 fix 패턴 = "JSONL에 이미 있는 더 잘게 쪼갠 필드를 nullable 컬럼으로 흡수".
+
+**설계 — 3축**:
+- **① dual-home**: 최소안 = `ingest --home <path>` 플래그 + 다른 home 자동감지 시 1줄 경고.
+  완성안 = config `claudeHomes: []` 다중 home을 **한 DB로** 병합 ingest. 안전성 =
+  `(source, request_id)` dedup([[D-027]])이 중복 자동제거 보장. DB 경로를 home과 분리.
+- **② 프로젝트**: B2(빠름) = config 프로젝트 맵 `{name: path}` 결정론적 분류.
+  B1(정답) = 파서가 Read/Edit/Bash의 파일경로 인자를 `tool_events.target_path` 신규 컬럼에
+  저장 → 세션별 최빈 상위 디렉토리로 project 추론.
+- **③ subagent**: C1 = Task tool_use의 `subagent_type` → `tool_events.subagent_type` 컬럼
+  (~20 LOC). C2 = subagent 내부 턴 태그 → `token_events.subagent_type` → agent별 USD 집계.
+  3축 중 **가성비 최고** (데이터 완비·변경 작음·기존 도구별 분석을 agent별로 자연 확장).
+
+**공통 구현 원칙**:
+- 새 컬럼 전부 **nullable + `ALTER TABLE ADD COLUMN`** (비파괴). 옛 행 NULL 유지,
+  강제 re-ingest로 backfill 가능 (JSONL 원본 디스크 보존).
+- 새 차원마다 **audit invariant 1개** 추가 (`Σ(차원별 USD) == 총 USD`, 기존 roll-up
+  보존검사 패턴).
+- 구현 순서(쌀→비쌈): **C1 → ①경고+`--home` → C2 → ②B1**.
+
+**출력 규격 (output contract)** — 신규 attribution 뷰가 내는 답변은 규격을 따라야 함:
+- CLI stdout·MCP 응답 둘 다 고정 규격. 모든 attribution 뷰 =
+  **[차원값 · 지표 · share% · 합계행]** 4요소 필수 — 출력만 봐도 Σ가 self-check 되게.
+- 한 행 = 한 줄, 고정 필드 순서·구분자, 단위 명시($ / tokens / ms).
+- empty·error 상태도 **정의된 형태로 명시** (silent 금지 — "no data" 출력).
+- MCP 응답은 CHANGELOG 0.1.9 token-efficient 규율 유지 (compact, 패딩 0).
+- 출력 포맷 = downstream LLM·스크립트가 파싱하는 **사실상의 API** → 변경 시 CHANGELOG 기록 의무.
+- 출력의 total == audit invariant가 검증하는 total (1:1 일치).
+
+**PMF 게이트**: 결제 0건·알파 0명 동안 build 보류. attribution 정밀도는 PMF 이후 polish —
+지금 최우선은 "도구를 사용자 앞에 놓는 것".
+
+**번복 트리거**:
+- 유료/알파 사용자가 프로젝트별 또는 agent별 breakdown을 명시 요청 → 해당 축만 우선 착수.
+- split-env(WSL+Windows) 사용자 리포트 1건이라도 → ① 최소안(`--home` + 경고) 즉시.
+
+**관련 박제**: [[D-002]] 로컬 JSONL 파싱 (attribution 원천) / [[D-027]] dedup
+(다중 home 병합 안전성 근거).
+
+---
+
+## D-037. 가격 테이블 최신화 — (A) 무료 갱신·"as of" 고지 / (B) Pro 계약단가 매트릭스 (build 보류)
+**날짜**: 2026-05-17
+**결정**: 모델 가격 변경·신규 모델 대응을 두 갈래로 분리 설계. **build는 PMF 게이트 통과 후로
+보류**, 본 항목은 설계만 박제.
+
+**배경**: `src/pricing.ts:11`의 `PRICES`는 13개 모델 **하드코딩 테이블** + 주석 "updated
+2026-05". 사용자가 가격 수정·모델 추가할 통로 없음 (env/config/CLI 전무) → 소스 편집 + npm
+재배포만 가능 = 개발자 전용. `resolveModel()` family fallback이 신규 모델을 ballpark로
+추정해 크래시는 없으나, **기존 모델 가격이 바뀌면 재배포 전까지 조용히 옛 단가로 계산** =
+비용 도구가 소리 없이 거짓말.
+
+**핵심 구분**: "가격 변경/신규 모델 반영"은 서로 다른 두 문제 — 섞으면 무료 티어가 조용히
+틀려짐.
+- **(A) 내장 테이블 최신 유지** — 공개가 변경·신규 모델 = 유지보수 문제. **무료**여야 함.
+- **(B) 사용자별 계약 단가** — 회사 볼륨 계약 오버라이드 = 정당하게 **Pro**.
+
+**설계 (A) — 무료**:
+- `PRICES` 하드코딩 TS → 패키지 번들 `pricing.json`으로 분리.
+- `~/.tokenmeter/pricing.json` 사용자 오버라이드 파일 지원 → **재배포 없이 모델 추가·가격
+  수정**.
+- `ingest` 시 테이블 미등록 모델 string 감지 → 1줄 경고 (family fallback 추정 중임을 명시).
+- **"Prices as of YYYY-MM" 고지** — 모든 비용 출력(CLI·MCP·대시보드)에 가격표 기준 시점을
+  1줄 표기. 내장 테이블이 stale해도 사용자가 **눈으로 staleness 판단 가능** → "조용한
+  거짓말"이 "정직한 추정"으로 전환. ([[D-036]] 출력 규격의 일부로 편입)
+- 추정 ~1-2h.
+
+**설계 (B) — Pro** (`docs/pro-features.md §6` 스펙 그대로):
+- `pricing_overrides(model, *_per_mtok, effective_from, …)` 테이블 + GUI 설정탭 +
+  `pricing import/reset` CLI + 오버라이드 추가 시 과거 `usd_estimate` 백필 재계산.
+- 추정 ~3-4h.
+
+**무료/유료 선**: 무료 = "JSON 직접 편집 + 기준시점 고지" (단일 전역 단가·수동) / Pro =
+"관리형 GUI + effective_from 시점별 계약단가 + 과거 자동 recompute". 방어 가능한 분리 —
+무료 편집은 fiddly·전역·비버전, Pro는 관리형·시점별·이력 재계산.
+
+**구현 순서**: (A) 먼저 (correctness·정직성·무료·소규모) → (B)는 첫 Pro 결제 후.
+
+**PMF 게이트**: build 전부 보류 (결제 0건). 그동안 내장 테이블 갱신은 dev patch 릴리스로만
+임시 대응 — "as of" 고지가 없는 현 상태에선 사용자가 staleness를 못 보는 게 최대 약점,
+(A) 착수 전까지 감수.
+
+**번복 트리거**:
+- 첫 Pro 결제 발생 → (B) custom pricing matrix 착수.
+- 회사 계약단가 사용자 요청 1건 → (B) 우선순위 상향.
+- 외부 사용자가 "가격이 틀리다" 리포트 → (A) 즉시 착수 (correctness 항목으로 승격).
+
+**관련 박제**: [[D-002]] 로컬 JSONL 파싱·자체 토크나이저 없음 (가격표가 $ 환산의 단일
+의존점) / [[D-036]] 출력 규격 ("as of" 고지를 output contract에 편입).
+
+---
+
+## D-038. 게이팅 default-ON + /4haiku Pro 기능 검토 → 커스텀 가격·익명 벤치마크 폐기, 캐시 효율·낭비 신호 빌드
+**날짜**: 2026-05-18
+**버전**: v0.1.10
+
+**결정**: (1) 라이선스 게이팅을 default-ON으로 전환. (2) `/4haiku` 5-에이전트 검토 결과
+광고만 되고 미빌드였던 Pro 기능 4종 중 **커스텀 가격 매트릭스·익명 벤치마크 2종 폐기**,
+**캐시 효율 분석·낭비 신호 2종을 신규 빌드**해 Pro 헤드라인으로. (3) 모든 광고 surface를
+빌드 상태와 일치시킴.
+
+**배경**: 게이팅 코드(`src/license.ts`, [[D-031]] γ)는 v0.1.3부터 존재하나 dormant —
+`TOKEN_METER_GATING` 미설정 시 전원 Pro+로 해석돼 평상시 티어 구분이 전혀 작동 안 함.
+한편 랜딩·슬래시·README·`docs/pro-features.md`는 Pro 혜택으로 비용 예측·CSV export·커스텀
+가격 매트릭스·익명 벤치마크·주간 권장·자동 trim을 광고했으나 `src/`에 구현 0 — 결제 시
+"없는 걸 파는" 신뢰·환불 리스크.
+
+**(1) 게이팅 default-ON**:
+- `isGatingEnabled()` 기본 true. `TOKEN_METER_GATING=0`(또는 false)은 개발·dogfood용
+  escape hatch(전원 Pro+). trim 처리 — cmd.exe `set X=0 ` 공백 함정 방어.
+- Polar checkout + webhook → 라이선스 발급 경로가 live(2026-05-15 첫 e2e)이므로 베타
+  dormant 기본을 flip. npm 다음 버전부터 라이선스 없으면 Free.
+
+**(2) /4haiku Pro 기능 검토** (5 Haiku 병렬, depth task, ~367K tokens):
+- 광고 4종 전부 B-1순위 점수 낮음(2~4.5/10). 평결:
+  - **커스텀 가격 매트릭스 → 폐기**: ICP(개인 빌더)는 공개 정가 사용, 회사 계약단가
+    수요 없음. [[D-037]] (B) 설계를 폐기로 대체 — (A) "as of" 고지·pricing.json은 유효.
+  - **익명 벤치마크 → 폐기**: 사용자 ~0 = cold-start로 비교 모수 자체가 없음 +
+    local-first 신뢰와 충돌. [[D-008]] 옵트인 설계 보류.
+- 검토가 발굴한 진짜 Pro 가치(미광고) = **낭비 탐지 + 캐시 효율** → 신규 빌드:
+  - **캐시 효율 분석**: hit ratio, 캐시 절감액(gross/net), 캐시 생성비. LLM 0.
+  - **낭비 신호**: 도구 응답 outlier(max>5×avg & >10k) + 미회수 캐시 날. LLM 0 휴리스틱.
+  - 둘 다 Pro 게이트. `stats.cacheStats()`/`wasteSignals()` + 단위테스트 5.
+- 비용 예측·CSV export는 폐기 아님 — "추후 증분"으로 강등(planned 표기).
+
+**(3) 광고 정합**: 랜딩 #pricing·`/token-meter` 슬래시·README 가격표·`docs/pro-features.md`
+배너+매트릭스를 빌드된 것만 표시하도록 수정. README가 Free를 "30일"로 잘못 표기한 것도
+정정(실제 7일).
+
+**메타룰 노트**: `/4haiku`의 "본 프로젝트 침범 X" 룰은 사용자 명시 우회([[D-031]] 정합 —
+비-매매 메타룰, 1회, 리뷰 도구 용도). PMF 게이트는 [[D-031]]에서 이미 폐기 → 빌드 차단 X.
+
+**번복 트리거**:
+- 외부 사용자가 회사 계약단가 오버라이드 요청 → 커스텀 가격 매트릭스 재검토.
+- Pro 결제 5건 + 사용자 100+ → 익명 벤치마크 cold-start 해소 시 재검토.
+- 캐시 효율·낭비 신호를 결제자가 "왜 Pro냐" 불만 → Free 재분배 검토.
+
+**관련 박제**: [[D-031]] γ 게이팅 flip 트리거 + 메타룰 우회 / [[D-037]] (B) 폐기로 대체,
+(A) 유효 / [[D-008]] 익명 벤치마크 옵트인 보류 / [[D-020]] Pro $5 단일가 / [[D-026]] Pro
+기능 강화 (4haiku 검토로 구성 재정의).
+
+---
+
 ## 향후 결정 보류 항목
 
 | 번호 | 항목 | 결정 시점 |

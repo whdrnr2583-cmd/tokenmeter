@@ -1,31 +1,34 @@
 # Pro features — Token Meter
 
-> **Status (2026-05-14)**: Pro tier is not yet billable. The license-gating
-> code, Polar checkout, and webhook plumbing are deferred. During the free
-> beta everything in this document is **already running locally** and
-> ungated — Pro is what you'll continue to get once gating is wired in.
+> **Status (2026-05-18)**: Pro gating is **live** — with no license every
+> caller resolves to Free; an activated Pro license unlocks the Pro column.
+> The table below is the source of truth for what ships **today**:
+> ✅ = built and gated, 🛠 = planned (not yet shipped). The detailed specs
+> further down may describe planned work — trust the table.
 
 ## Free vs Pro — one-line difference
 
 | | Free ($0) | Pro ($5/month) |
 |---|---|---|
-| Sources | Claude Code + Codex | same |
-| Storage | local SQLite, 100% offline | same |
-| History window | **7 days** | **30 days** |
-| MCP / tool breakdown | ✅ | ✅ |
-| Project / model / hour breakdown | ✅ | ✅ |
-| USD conversion (estimate) | ✅ | ✅ |
-| Average TPS | ✅ | ✅ |
-| Desktop notification rule | 1 rule | **unlimited rules** |
-| Webhook + email actions | ❌ | ✅ |
-| Weekly digest email | ❌ | ✅ |
+| Sources (Claude Code + Codex) | ✅ | ✅ |
+| Local SQLite, 100% offline | ✅ | ✅ |
+| MCP / tool · project / model / hour breakdown | ✅ | ✅ |
+| USD conversion (estimate) · average TPS | ✅ | ✅ |
+| History window | 7 days | **30 days** ✅ |
+| Desktop notification rule | 1 rule | **unlimited** ✅ |
+| Webhook alert action | ❌ | ✅ |
 | Session / message drill-down | ❌ | ✅ |
-| Cost forecast + pacing alerts | ❌ | ✅ |
-| CSV / JSON export | ❌ | ✅ |
-| Custom pricing matrix | ❌ | ✅ |
-| Weekly recommendation report | ❌ | ✅ |
-| Anonymous usage benchmark | ❌ | ✅ (opt-in) |
-| Auto-trim rule suggestions | ❌ | ✅ (suggestions only — no auto-execute) |
+| Cache efficiency (hit ratio + savings) | ❌ | ✅ |
+| Waste signals (tool outliers + unused cache) | ❌ | ✅ |
+| Cost forecast + pacing alerts | ❌ | 🛠 planned |
+| CSV / JSON export | ❌ | 🛠 planned |
+| Weekly digest / recommendation email | ❌ | 🛠 planned |
+| Auto-trim rule suggestions | ❌ | 🛠 planned |
+
+✅ = built and gated today · 🛠 = planned, not yet shipped. Custom pricing
+matrix and anonymous benchmark were evaluated and **dropped** (see
+CHANGELOG 0.1.10) — neither fit the target user; their spec sections below
+are kept only for the rationale.
 
 Pricing rationale: see [05-decisions.md D-020](../05-decisions.md) (Pro $5 single tier with 81% gross margin under Gemini-automated support). Pro+ ($24) and Team are separate documents.
 

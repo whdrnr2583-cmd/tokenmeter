@@ -1,7 +1,7 @@
 // Anthropic + OpenAI pricing (USD per million tokens) — updated 2026-05.
 // Single source of truth. Heuristics only; no LLM call.
 
-interface ModelPrice {
+export interface ModelPrice {
   input: number;
   output: number;
   cacheRead: number;
@@ -40,6 +40,15 @@ function resolveModel(model: string): ModelPrice {
   if (normalized.includes('gpt-4o')) return PRICES['gpt-4o']!;
   // unknown — default to Sonnet pricing
   return PRICES['claude-sonnet-4-6']!;
+}
+
+/**
+ * Per-million-token rates for a model (after family-fallback resolution).
+ * Exposed so cache-efficiency math can compare input vs cache-read rates
+ * without re-deriving the price table. Heuristic only; no LLM call.
+ */
+export function modelRates(model: string): ModelPrice {
+  return resolveModel(model);
 }
 
 export function estimateUsd(opts: {

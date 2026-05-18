@@ -5,6 +5,55 @@ All notable changes to Token Meter.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.10] — 2026-05-18
+
+### Added
+- **Cache efficiency (Pro)** — `stats` now reports cache hit ratio
+  (cache reads ÷ read-side tokens), gross USD saved by cache reads (each
+  cache-read token billed at the cache rate instead of the input rate),
+  USD spent creating caches, and the net. LLM-free — pure aggregation
+  over `token_events` plus the pricing table.
+- **Waste signals (Pro)** — heuristic flags worth a look, not verdicts:
+  tools (≥3 calls) whose largest response dwarfs their average
+  (max > 5× avg and > 10k tokens — oversized context dumps), and days
+  that wrote more cache than they read back. LLM-free.
+- `stats.cacheStats()` / `stats.wasteSignals()` + 5 unit tests.
+
+### Changed
+- **Tier gating is now enabled by default.** With no license every
+  caller resolves to Free; an activated Pro / Pro+ license upgrades the
+  tier. `TOKEN_METER_GATING=0` (or `false`) is now a developer escape
+  hatch that forces gating off (resolves to Pro+). Previously gating was
+  dormant and every caller saw Pro+ — the Polar checkout + webhook →
+  license issuance path is live, so the beta default has been flipped.
+- **`stats` output is column-aligned and more compact** — header and
+  rows are built from shared fixed widths, USD shows 2 decimals (was 4),
+  the overview header names the active tier (`Last 7 days · Free tier`),
+  and the per-model / per-project rows dropped redundant `out=` /
+  `events=` inline labels now that there are headers.
+- Cache efficiency + waste signals are Pro-gated in `stats`; Free callers
+  see a one-line pointer instead.
+
+### Removed
+- **Custom pricing matrix** and **anonymous usage benchmark** dropped
+  from the Pro scope after a structured design review (`/4haiku`): the
+  pricing matrix does not fit the individual-builder ICP (who uses list
+  prices), and the benchmark cannot work with a near-zero user base
+  (cold-start) and conflicts with the local-first trust story.
+
+### Fixed
+- **Pro / landing / slash-command copy now matches what is built.** The
+  pricing card, README table, `/token-meter` slash command, and
+  `docs/pro-features.md` advertised features that were never implemented
+  (cost forecast, CSV/JSON export, weekly recommendations, benchmark,
+  auto-trim, custom pricing). Pro now lists only what ships today; cost
+  forecast and CSV/JSON export are labelled planned.
+- `cli.ts` tier label no longer collapses Pro+ into "Pro" via a new
+  `tierLabel()` helper (latent — the clamp path that used it was
+  unreachable for Pro+, but the helper is now correct for all tiers).
+
+---
+
 ## [0.1.9] — 2026-05-16
 
 ### Changed

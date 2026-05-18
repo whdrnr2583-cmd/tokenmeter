@@ -1,13 +1,13 @@
 // License entitlement resolution.
 //
-// Status (v0.1.3): gating is **disabled by default** during the beta. Every
-// caller of getEntitlement() sees Pro+ unless TOKEN_METER_GATING=1 is set.
-// This keeps existing dogfood + beta behavior intact while the gating code
-// lands and gets exercised in CI.
+// Gating is **enabled by default**. With no license, every caller of
+// getEntitlement() resolves to Free; an activated Pro / Pro+ license (env or
+// ~/.tokenmeter/license.json) upgrades the tier. The Polar checkout + webhook
+// → license issuance path (γ in 05-decisions D-031) is live, so the dormant
+// beta default has been flipped on.
 //
-// Once the Polar checkout + webhook → license issuance (γ in 05-decisions
-// D-031) is live, the default flips to enabled and TOKEN_METER_GATING is
-// reinterpreted to mean "force gating off" (developer escape hatch).
+// Escape hatch: set TOKEN_METER_GATING=0 (or false) to force gating off — every
+// caller resolves to Pro+. Used for local development and dogfooding.
 
 import {
   appendFileSync,
@@ -58,8 +58,11 @@ export const FREE_RULE_CAP = 1;
 export const FREE_ACTION_TYPES = new Set<string>(['notify.desktop']);
 
 function isGatingEnabled(): boolean {
-  const v = process.env[GATING_ENV];
-  return v === '1' || v === 'true';
+  // Gating is ON by default. TOKEN_METER_GATING=0 (or false) forces it off —
+  // a developer escape hatch that resolves every caller to Pro+. Trimmed +
+  // lowercased so a stray space (e.g. cmd.exe `set X=0 `) still disables it.
+  const v = process.env[GATING_ENV]?.trim().toLowerCase();
+  return v !== '0' && v !== 'false';
 }
 
 function parseTier(input: string): Tier | null {
@@ -153,6 +156,11 @@ export function isProTier(tier: Tier): boolean {
 
 export function isProPlusTier(tier: Tier): boolean {
   return tier === 'pro_plus';
+}
+
+/** Human-readable tier label for CLI / dashboard display. */
+export function tierLabel(tier: Tier): string {
+  return tier === 'free' ? 'Free' : tier === 'pro_plus' ? 'Pro+' : 'Pro';
 }
 
 // ---------- Remote verify + activate (talks to infra/api worker) ----------

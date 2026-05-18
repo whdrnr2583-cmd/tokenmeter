@@ -94,8 +94,8 @@ neither verifies the rates against vendor invoices.
 
 | Tier | Price | What you get |
 |---|---|---|
-| **Free** | $0 | Multi-vendor parsing, MCP breakdown, 30-day history, hourly/model/project breakdown |
-| **Pro** | **$5/mo** | Unlimited history, weekly recommendations, anonymous benchmark comparison, auto-trim rule suggestions |
+| **Free** | $0 | Claude Code + Codex parsing, MCP/tool breakdown, hourly/model/project breakdown, 7-day history, 1 desktop alert |
+| **Pro** | **$5/mo** | Everything in Free + 30-day history, unlimited smart alerts (desktop + webhook), session drill-down, cache efficiency, waste signals |
 | Pro+ | _later_ | Local LLM proxy (Ollama / LM Studio / llama.cpp / vLLM), GPU/VRAM tracking, auto actions |
 
 Pro+ ships once Pro sign-ups + community demand confirm the segment.
