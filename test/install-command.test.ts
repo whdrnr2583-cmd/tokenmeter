@@ -109,10 +109,13 @@ test('installClaudeCodeCommand dry-run does not write when stale', () => {
   }
 });
 
-test('commandTemplate output is non-empty and includes the key marketing block', () => {
+test('commandTemplate has the usage_summary call + Pro hint, no $-digit arg trap', () => {
   const t = commandTemplate();
   assert.ok(t.includes('usage_summary'));
-  assert.ok(t.includes('Pro $5/월'));
+  assert.ok(t.includes('Pro'));
   assert.ok(t.includes('https://token-meter.dev'));
-  assert.ok(t.includes('/mcp__token-meter__recent_sessions'));
+  // A `$` followed by a digit in a slash-command file is treated as a
+  // positional argument and substituted away (e.g. `$5` → ``). The price
+  // must not contain a $-digit sequence.
+  assert.ok(!/\$\d/.test(t));
 });

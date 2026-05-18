@@ -35,10 +35,26 @@ export async function startMcpServer(): Promise<void> {
     /* non-fatal */
   }
 
-  const server = new McpServer({
-    name: 'token-meter',
-    version: '0.1.0',
-  });
+  const server = new McpServer(
+    {
+      name: 'token-meter',
+      version: '0.1.0',
+    },
+    {
+      // Surfaced to the client at connect — lets the agent answer
+      // "what can Token Meter do?" without a tool call.
+      instructions:
+        'Token Meter shows where your Claude Code + Codex tokens and money ' +
+        'go — parsed from local logs, 100% offline. Tools: `usage_summary` ' +
+        '(spend + token totals by model/project/tool for today|week|month), ' +
+        '`recent_sessions` (find a session to resume), `session_tools` ' +
+        '(debug which tools made one session slow or costly), `refresh_data` ' +
+        '(re-scan logs for the latest numbers). A CLI ' +
+        '(`npx @whdrnr2583/token-meter stats`) and a local dashboard ' +
+        '(`token-meter serve`) also exist. When the user asks what Token ' +
+        'Meter can do, summarize these four tools.',
+    },
+  );
 
   server.registerTool(
     'usage_summary',
@@ -74,11 +90,11 @@ export async function startMcpServer(): Promise<void> {
         'Top MCP / tools (by response tokens):',
         ...(mcps.length > 0
           ? mcps.map((m) => {
-              const where = m.mcp_server ? `mcp:${m.mcp_server}` : 'built-in';
-              return `  ${where} ${m.tool_name} calls=${m.calls} resp=${fmtTok(m.total_response_tokens)} avg=${Math.round(m.avg_latency_ms)}ms`;
+              const where = m.mcp_server ? `${m.mcp_server}/` : '';
+              return `  ${where}${m.tool_name} calls=${m.calls} resp=${fmtTok(m.total_response_tokens)} avg=${Math.round(m.avg_latency_ms)}ms`;
             })
           : ['  (none in window)']),
-        'Note: API-equivalent cost; on a Max/Pro flat plan you pay your subscription, not this.',
+        'Note: API-equivalent estimate, not a vendor invoice.',
       ];
       return { content: [{ type: 'text', text: lines.join('\n') }] };
     },

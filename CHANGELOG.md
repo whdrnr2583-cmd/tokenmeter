@@ -5,6 +5,39 @@ All notable changes to Token Meter.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.11] — 2026-05-19
+
+### Added
+- **MCP server `instructions`** — the server now ships a short capability
+  overview (what Token Meter is, what each of the four tools is for, that a
+  CLI and dashboard also exist). Surfaced to the client at connect, so an
+  agent can answer "what can Token Meter do?" accurately without a tool call.
+
+### Changed
+- **`/token-meter` slash command slimmed** — the installed command file
+  (`~/.claude/commands/token-meter.md`) dropped its verbose step list and the
+  multi-line "other commands" block, keeping the `usage_summary` call and a
+  one-line Pro hint. Roughly halves the prompt the command injects on every
+  `/token-meter` invocation. `allowed-tools` is narrowed to the one tool the
+  command actually calls.
+- **`usage_summary` MCP output micro-trim** — built-in tools no longer carry a
+  repeated `built-in` label (MCP tools keep a `server/` prefix) and the
+  trailing note is shorter. Same information, fewer tokens.
+
+### Fixed
+- **`$5` in the slash-command file was silently eaten.** Claude Code treats
+  `$` + digit in a `~/.claude/commands/*.md` file as a positional argument, so
+  the Pro hint `Pro $5/월` rendered as `Pro /월` when `/token-meter` ran with
+  no args. The price is now written without a `$`-digit sequence (`월 5달러`),
+  and a test guards against the pattern returning.
+
+### Note
+Re-run `npx -y @whdrnr2583/token-meter install-command claude-code` to pick up
+the slimmed `/token-meter` command (the installer updates the managed file and
+backs up the old one).
+
+---
+
 ## [0.1.10] — 2026-05-18
 
 ### Added
