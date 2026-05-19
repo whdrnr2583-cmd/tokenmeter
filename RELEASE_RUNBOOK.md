@@ -86,7 +86,7 @@ gh repo create <OWNER>/token-meter --public \
 `gh` CLI 없으면: github.com 웹에서 빈 리포 생성 → `git remote add origin ...` → `git push -u origin main`
 
 ### 4. NPM_TOKEN 등록 (자동 publish용 — 1번만)
-1. npmjs.com → Account → Access Tokens → Generate New Token → **Granular**, **Publish** scope, **token-meter** 패키지로 제한
+1. npmjs.com → Account → Access Tokens → Generate New Token → **Granular**, **Publish** scope, **@whdrnr2583/token-meter** 패키지로 제한
 2. GitHub `<OWNER>/token-meter` → Settings → Secrets → Actions → New: `NPM_TOKEN` = 토큰값
 
 ### 5. 첫 publish (수동, 검증용)
@@ -100,7 +100,7 @@ npm publish --access public --provenance
 - `prepublishOnly` 실패 → 사전 점검 다시
 - 2FA 오류 → npm 사이트에서 OTP 재확인
 
-성공 시 npmjs.com/package/token-meter 페이지 자동 생성.
+성공 시 npmjs.com/package/@whdrnr2583/token-meter 페이지 자동 생성.
 
 ### 6. Git 태그 + 자동 release 검증
 ```sh
@@ -119,13 +119,13 @@ git push origin v0.1.0
 ```sh
 # 별도 디렉토리에서
 cd C:\Users\whdrn\Desktop
-npx -y token-meter@0.1.0 stats 7
+npx -y @whdrnr2583/token-meter@0.1.0 stats 7
 # → "Last 7 days" 요약 출력
 ```
 
 ### 2. MCP 등록 + 호출 확인
 ```sh
-claude mcp add token-meter -- npx -y token-meter mcp
+claude mcp add token-meter -- npx -y @whdrnr2583/token-meter mcp
 # Claude Code에서 "token-meter usage_summary로 이번주 보여줘" 요청
 ```
 
@@ -143,8 +143,8 @@ claude mcp add token-meter -- npx -y token-meter mcp
 ```
 Token Meter v0.1.0 공개했습니다.
 Claude Code + Codex 토큰 사용량 로컬 대시보드 + MCP 서버 (무료, MIT).
-npx token-meter mcp 로 등록하면 Claude Code 안에서 "최근 세션 보여줘" 가능.
-https://www.npmjs.com/package/token-meter
+npx @whdrnr2583/token-meter mcp 로 등록하면 Claude Code 안에서 "최근 세션 보여줘" 가능.
+https://www.npmjs.com/package/@whdrnr2583/token-meter
 피드백 환영합니다.
 ```
 
@@ -175,12 +175,12 @@ https://www.npmjs.com/package/token-meter
 
 ### Critical 버그 발견 (24h 이내)
 ```sh
-npm unpublish token-meter@0.1.0
+npm unpublish @whdrnr2583/token-meter@0.1.0
 # 패치 후 0.1.1로 재배포
 ```
 24h 지나면 unpublish 불가 → deprecate + 0.1.1 publish:
 ```sh
-npm deprecate token-meter@0.1.0 "Critical bug, use 0.1.1+"
+npm deprecate @whdrnr2583/token-meter@0.1.0 "Critical bug, use 0.1.1+"
 npm publish --access public
 ```
 
