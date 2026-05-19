@@ -5,6 +5,57 @@ All notable changes to Token Meter.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.15] — 2026-05-19
+
+### Added
+- **First-run guard.** A brand-new install has an empty database, so
+  `stats`, the MCP tools and the dashboard would show a wall of zeros with
+  no explanation. `ensureFirstRunData()` auto-ingests once on first run; if
+  no Claude Code / Codex logs exist anywhere it returns plain-text guidance
+  instead, and the dashboard shows an empty-state banner.
+- **`usage_summary` `insights` option** — `insights=true` appends up to
+  three concise heuristic tips (today vs the 7-day daily average, the
+  latency-sink tool, a cache-reuse note), computed server-side with no LLM
+  call. Off by default.
+
+### Changed
+- **`usage_summary` is answer-shaped.** It leads with what you spent, the
+  token volume (with cache-reuse share), where it went and the slowest
+  tool — instead of per-model / per-project / per-tool lists. A Pro line
+  surfaces the existing Pro features.
+- **CLI `stats` is more compact** — the overview block and cache-waste list
+  are now border-free aligned tables (fewer lines / tokens), with a
+  one-line footer noting the report is formatted lean on purpose.
+- **The MCP server reports its real version** (read from `package.json`)
+  instead of a hardcoded `0.1.0`.
+
+### Fixed
+- **Codex usage on the Windows side was missed under WSL.** Codex ingest
+  scanned only `~/.codex/sessions`; it now also scans the Windows-side
+  `/mnt/c/Users/*/.codex/sessions`.
+- **Windows-profile detection was unreliable.** The WSL dual-environment
+  scan guessed the Windows username, but `USERPROFILE` is often unset under
+  WSL and the first `/mnt/c/Users` entry can be a sandbox/system account
+  (e.g. `CodexSandboxOffline`). It now scans every profile and uses the
+  directories that actually exist.
+- **The MCP server lost its every-startup incremental ingest** while the
+  first-run guard was wired in — restored, so `usage_summary` reflects
+  current data rather than the last manual refresh.
+
+---
+
+## [0.1.14] — 2026-05-19
+
+### Added
+- **WSL dual-environment scan** — running inside WSL, Token Meter now also
+  scans the Windows-side Claude Code logs, so sessions from a Windows
+  install are not silently skipped. (Profile detection refined in 0.1.15.)
+
+### Changed
+- Six UX quick-win fixes plus landing-page corrections (stale label, copy).
+
+---
+
 ## [0.1.13] — 2026-05-19
 
 ### Fixed
