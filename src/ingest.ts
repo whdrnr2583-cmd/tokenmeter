@@ -1,4 +1,4 @@
-import { readdirSync, statSync, existsSync } from 'node:fs';
+import { readdirSync, statSync, existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type Database from 'better-sqlite3';
@@ -24,8 +24,86 @@ export interface CombinedIngestSummary {
   codex: { files_scanned: number; files_processed: number; token_rows_inserted: number; duration_ms: number };
 }
 
+/**
+ * Returns true when the current process is running inside WSL (Windows
+ * Subsystem for Linux). Checks /proc/version for the "microsoft" or "WSL"
+ * string which is present in all WSL 1 and WSL 2 kernels.
+ */
+export function isWsl(): boolean {
+  try {
+    const version = readFileSync('/proc/version', 'utf8');
+    return /microsoft|wsl/i.test(version);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Detect the Windows username when running inside WSL by examining the
+ * $USERPROFILE or $USERNAME env vars that WSL inherits, or by finding the
+ * first non-"Public"/"Default*" directory under /mnt/c/Users/.
+ * Returns null when detection fails (e.g. pure Linux/macOS).
+ */
+export function detectWindowsUser(): string | null {
+  // WSL inherits Windows env vars; USERPROFILE is e.g. "C:\Users\whdrn"
+  const userprofile = process.env['USERPROFILE'];
+  if (userprofile) {
+    const match = userprofile.match(/[Uu]sers[\\/]([^\\/]+)/);
+    if (match?.[1]) return match[1];
+  }
+  // Fallback: scan /mnt/c/Users for the first real user dir
+  const usersRoot = '/mnt/c/Users';
+  if (!existsSync(usersRoot)) return null;
+  try {
+    const entries = readdirSync(usersRoot, { withFileTypes: true });
+    for (const e of entries) {
+      if (!e.isDirectory()) continue;
+      const name = e.name;
+      if (/^(Public|Default|Default User|All Users|desktop\.ini)$/i.test(name)) continue;
+      return name;
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+/**
+ * Primary Claude projects directory (always the home-dir one).
+ * Kept for backward compatibility and for callers that just need a single path.
+ */
 export function claudeProjectsDir(): string {
   return join(homedir(), '.claude', 'projects');
+}
+
+/**
+ * All Claude projects directories to scan. On WSL this includes the Windows
+ * side (/mnt/c/Users/<winuser>/.claude/projects) in addition to the WSL
+ * home-dir path so that sessions from a Windows Claude Code installation are
+ * not silently skipped.
+ *
+ * Dedup note: Claude Code writes JSONL only to the host where it runs. If a
+ * user runs Claude Code exclusively in Windows, the WSL ~/.claude/projects may
+ * be empty or absent — that is fine. The two directories are distinct on-disk
+ * paths, so the same session file cannot appear in both; there is no risk of
+ * double-counting at the file level.
+ */
+export function claudeProjectsDirs(): string[] {
+  const primary = claudeProjectsDir();
+  const dirs: string[] = [primary];
+
+  if (isWsl()) {
+    const winUser = detectWindowsUser();
+    if (winUser) {
+      const winPath = `/mnt/c/Users/${winUser}/.claude/projects`;
+      // Only add when it is a different path (e.g. home is not /mnt/c/Users/...)
+      if (winPath !== primary) {
+        dirs.push(winPath);
+      }
+    }
+  }
+
+  return dirs;
 }
 
 // Decode Claude Code's project-directory name back to a path. Lossy fallback
@@ -48,7 +126,7 @@ export function ingestClaudeCode(
   options: { force?: boolean } = {},
 ): IngestSummary {
   const start = Date.now();
-  const baseDir = claudeProjectsDir();
+  const baseDirs = claudeProjectsDirs();
   const summary: IngestSummary = {
     files_scanned: 0,
     files_processed: 0,
@@ -57,52 +135,51 @@ export function ingestClaudeCode(
     duration_ms: 0,
   };
 
-  if (!existsSync(baseDir)) {
-    summary.duration_ms = Date.now() - start;
-    return summary;
-  }
+  for (const baseDir of baseDirs) {
+    if (!existsSync(baseDir)) continue;
 
-  const projectDirs = readdirSync(baseDir, { withFileTypes: true })
-    .filter((d) => d.isDirectory())
-    .map((d) => d.name);
+    const projectDirs = readdirSync(baseDir, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
 
-  for (const dirName of projectDirs) {
-    const projectPath = join(baseDir, dirName);
-    const prettyName = prettyProjectName(dirName);
+    for (const dirName of projectDirs) {
+      const projectPath = join(baseDir, dirName);
+      const prettyName = prettyProjectName(dirName);
 
-    let files: string[];
-    try {
-      files = readdirSync(projectPath).filter((f) => f.endsWith('.jsonl'));
-    } catch {
-      continue;
-    }
-
-    for (const f of files) {
-      const filePath = join(projectPath, f);
-      summary.files_scanned++;
-      let st;
+      let files: string[];
       try {
-        st = statSync(filePath);
+        files = readdirSync(projectPath).filter((f) => f.endsWith('.jsonl'));
       } catch {
         continue;
       }
 
-      const prior = getIngestState(db, filePath);
-      const unchanged =
-        !options.force &&
-        prior !== undefined &&
-        prior.mtime_ms === Math.floor(st.mtimeMs) &&
-        prior.size === st.size;
-      if (unchanged) continue;
+      for (const f of files) {
+        const filePath = join(projectPath, f);
+        summary.files_scanned++;
+        let st;
+        try {
+          st = statSync(filePath);
+        } catch {
+          continue;
+        }
 
-      const { tokens, tools } = parseJsonlFile(filePath, prettyName);
-      const ti = insertTokenEvents(db, tokens);
-      const tl = insertToolEvents(db, tools);
-      recordIngest(db, filePath, Math.floor(st.mtimeMs), st.size);
+        const prior = getIngestState(db, filePath);
+        const unchanged =
+          !options.force &&
+          prior !== undefined &&
+          prior.mtime_ms === Math.floor(st.mtimeMs) &&
+          prior.size === st.size;
+        if (unchanged) continue;
 
-      summary.files_processed++;
-      summary.token_rows_inserted += ti;
-      summary.tool_rows_inserted += tl;
+        const { tokens, tools } = parseJsonlFile(filePath, prettyName);
+        const ti = insertTokenEvents(db, tokens);
+        const tl = insertToolEvents(db, tools);
+        recordIngest(db, filePath, Math.floor(st.mtimeMs), st.size);
+
+        summary.files_processed++;
+        summary.token_rows_inserted += ti;
+        summary.tool_rows_inserted += tl;
+      }
     }
   }
 
