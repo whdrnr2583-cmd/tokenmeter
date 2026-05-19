@@ -4,9 +4,9 @@ import { join } from 'node:path';
 import type Database from 'better-sqlite3';
 import { getIngestState, insertTokenEvents, recordIngest } from './db.js';
 import { parseCodexSession } from './codex-parser.js';
-// isWsl lives in ingest.ts. This forms a benign import cycle — it is a
-// hoisted function, called only at runtime.
-import { isWsl } from './ingest.js';
+// scanWindowsUserDirs lives in ingest.ts. This forms a benign import
+// cycle — it is a hoisted function, called only at runtime.
+import { scanWindowsUserDirs } from './ingest.js';
 
 export interface CodexIngestSummary {
   files_scanned: number;
@@ -20,28 +20,14 @@ export function codexSessionsDir(): string {
 }
 
 /**
- * All Codex session directories to scan. On WSL this also scans every Windows
- * user profile that actually has a `.codex/sessions` directory, so a Codex
- * install on the Windows host is picked up. It looks for the data directly
- * instead of guessing the Windows username: USERPROFILE is often unset under
- * WSL, and the first /mnt/c/Users entry can be a sandbox/system account
- * (e.g. "CodexSandboxOffline"), not the real user.
+ * All Codex session directories to scan. On WSL this includes any
+ * Windows-side /mnt/c/Users/<profile>/.codex/sessions in addition to the
+ * WSL home-dir path, so a Codex install on the Windows host is picked up.
  */
 export function codexSessionsDirs(): string[] {
-  const dirs: string[] = [codexSessionsDir()];
-  if (isWsl()) {
-    try {
-      const usersRoot = '/mnt/c/Users';
-      for (const e of readdirSync(usersRoot, { withFileTypes: true })) {
-        if (!e.isDirectory()) continue;
-        const candidate = `${usersRoot}/${e.name}/.codex/sessions`;
-        if (existsSync(candidate) && !dirs.includes(candidate)) {
-          dirs.push(candidate);
-        }
-      }
-    } catch {
-      /* /mnt/c/Users absent — not a typical WSL-on-Windows setup */
-    }
+  const dirs = [codexSessionsDir()];
+  for (const d of scanWindowsUserDirs('.codex/sessions')) {
+    if (!dirs.includes(d)) dirs.push(d);
   }
   return dirs;
 }

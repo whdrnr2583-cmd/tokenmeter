@@ -39,33 +39,27 @@ export function isWsl(): boolean {
 }
 
 /**
- * Detect the Windows username when running inside WSL by examining the
- * $USERPROFILE or $USERNAME env vars that WSL inherits, or by finding the
- * first non-"Public"/"Default*" directory under /mnt/c/Users/.
- * Returns null when detection fails (e.g. pure Linux/macOS).
+ * Tool-data directories on the Windows side, for use when running under WSL.
+ * Scans every /mnt/c/Users/<profile>/<relPath> and returns the ones that
+ * exist. It looks for the data directly rather than guessing the Windows
+ * username — USERPROFILE is often unset under WSL, and the first
+ * /mnt/c/Users entry can be a sandbox/system account (e.g.
+ * "CodexSandboxOffline"), not the real user. Returns [] when off WSL.
  */
-export function detectWindowsUser(): string | null {
-  // WSL inherits Windows env vars; USERPROFILE is e.g. "C:\Users\whdrn"
-  const userprofile = process.env['USERPROFILE'];
-  if (userprofile) {
-    const match = userprofile.match(/[Uu]sers[\\/]([^\\/]+)/);
-    if (match?.[1]) return match[1];
-  }
-  // Fallback: scan /mnt/c/Users for the first real user dir
+export function scanWindowsUserDirs(relPath: string): string[] {
+  if (!isWsl()) return [];
   const usersRoot = '/mnt/c/Users';
-  if (!existsSync(usersRoot)) return null;
+  const out: string[] = [];
   try {
-    const entries = readdirSync(usersRoot, { withFileTypes: true });
-    for (const e of entries) {
+    for (const e of readdirSync(usersRoot, { withFileTypes: true })) {
       if (!e.isDirectory()) continue;
-      const name = e.name;
-      if (/^(Public|Default|Default User|All Users|desktop\.ini)$/i.test(name)) continue;
-      return name;
+      const candidate = `${usersRoot}/${e.name}/${relPath}`;
+      if (existsSync(candidate)) out.push(candidate);
     }
   } catch {
-    // ignore
+    /* /mnt/c/Users absent — not a typical WSL-on-Windows setup */
   }
-  return null;
+  return out;
 }
 
 /**
@@ -77,32 +71,20 @@ export function claudeProjectsDir(): string {
 }
 
 /**
- * All Claude projects directories to scan. On WSL this includes the Windows
- * side (/mnt/c/Users/<winuser>/.claude/projects) in addition to the WSL
- * home-dir path so that sessions from a Windows Claude Code installation are
- * not silently skipped.
+ * All Claude projects directories to scan. On WSL this includes any
+ * Windows-side /mnt/c/Users/<profile>/.claude/projects in addition to the
+ * WSL home-dir path, so sessions from a Windows Claude Code install are not
+ * silently skipped.
  *
- * Dedup note: Claude Code writes JSONL only to the host where it runs. If a
- * user runs Claude Code exclusively in Windows, the WSL ~/.claude/projects may
- * be empty or absent — that is fine. The two directories are distinct on-disk
- * paths, so the same session file cannot appear in both; there is no risk of
- * double-counting at the file level.
+ * Dedup note: Claude Code writes JSONL only to the host where it runs, and
+ * the directories are distinct on-disk paths — the same session file cannot
+ * appear in both, so there is no double-counting at the file level.
  */
 export function claudeProjectsDirs(): string[] {
-  const primary = claudeProjectsDir();
-  const dirs: string[] = [primary];
-
-  if (isWsl()) {
-    const winUser = detectWindowsUser();
-    if (winUser) {
-      const winPath = `/mnt/c/Users/${winUser}/.claude/projects`;
-      // Only add when it is a different path (e.g. home is not /mnt/c/Users/...)
-      if (winPath !== primary) {
-        dirs.push(winPath);
-      }
-    }
+  const dirs = [claudeProjectsDir()];
+  for (const d of scanWindowsUserDirs('.claude/projects')) {
+    if (!dirs.includes(d)) dirs.push(d);
   }
-
   return dirs;
 }
 
