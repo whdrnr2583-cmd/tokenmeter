@@ -21,8 +21,17 @@ function ageStr(minutes: number): string {
   const d = Math.floor(h / 24);
   return `${d}d ${h - d * 24}h ago`;
 }
-function periodDays(p: 'today' | 'week' | 'month'): number {
-  return p === 'today' ? 1 : p === 'week' ? 7 : 30;
+/**
+ * Window length in days for a usage period. `today` is the current *local
+ * calendar day* (local midnight → now), returned as a fractional day count so
+ * the day-window helper in stats.ts resolves to local midnight — this matches
+ * the per-day rows in the CLI breakdown. `week` / `month` stay rolling 7 / 30.
+ */
+export function periodWindowDays(p: 'today' | 'week' | 'month'): number {
+  if (p !== 'today') return p === 'week' ? 7 : 30;
+  const now = new Date();
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  return (Date.now() - midnight) / 86_400_000;
 }
 
 export async function startMcpServer(): Promise<void> {
@@ -72,13 +81,13 @@ export async function startMcpServer(): Promise<void> {
       },
     },
     async ({ period }) => {
-      const days = periodDays(period);
+      const days = periodWindowDays(period);
       const o = overview(db, days);
       const models = byModel(db, days).slice(0, 5);
       const projects = byProject(db, days, 5);
       const mcps = byMcp(db, days, 5);
       const lines = [
-        `Token Meter — last ${period === 'today' ? '24h' : period === 'week' ? '7d' : '30d'}`,
+        `Token Meter — ${period === 'today' ? 'today' : period === 'week' ? 'last 7d' : 'last 30d'}`,
         `cost ${fmtUsd(o.total_usd)} (API-equiv) | events ${o.events.toLocaleString()} | output ${fmtTok(o.total_output)} | cache-read ${fmtTok(o.total_cache_read)}`,
         'By model:',
         ...models.map((m) => `  ${m.model} ${fmtUsd(m.usd)} (${m.events} ev)`),

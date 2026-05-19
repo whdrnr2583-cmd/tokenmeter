@@ -5,6 +5,19 @@ All notable changes to Token Meter.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.13] — 2026-05-19
+
+### Fixed
+- **`usage_summary` "today" now means the local calendar day**, not a
+  rolling 24-hour window. Asking an agent for "today's usage" used to
+  return the last 24 h — which folds in part of yesterday (e.g. $294
+  reported when the calendar day's actual total was $73); it now covers
+  local midnight → now, matching the per-day rows in the CLI breakdown.
+  `week` / `month` stay rolling and are labelled `last 7d` / `last 30d`
+  so the distinction is explicit.
+
+---
+
 ## [0.1.12] — 2026-05-19
 
 ### Fixed
