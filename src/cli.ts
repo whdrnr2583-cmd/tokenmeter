@@ -71,12 +71,26 @@ function printOverview(
 ): void {
   const o = overview(db, days);
   console.log(`\n=== Last ${days} days · ${tierLabel(tier)} tier ===`);
-  console.log(`Events:        ${o.events}`);
-  console.log(`Input tokens:  ${fmtTokens(o.total_input)}`);
-  console.log(`Output tokens: ${fmtTokens(o.total_output)}`);
-  console.log(`Cache read:    ${fmtTokens(o.total_cache_read)}`);
-  console.log(`Cache write:   ${fmtTokens(o.total_cache_write)}`);
-  console.log(`Estimated USD: ${fmtUsd(o.total_usd)}`);
+  console.log(
+    row([
+      ['events', 8],
+      ['input', 9],
+      ['output', 9],
+      ['cache_r', 10],
+      ['cache_w', 10],
+      ['usd', 11],
+    ]),
+  );
+  console.log(
+    row([
+      [String(o.events), 8],
+      [fmtTokens(o.total_input), 9],
+      [fmtTokens(o.total_output), 9],
+      [fmtTokens(o.total_cache_read), 10],
+      [fmtTokens(o.total_cache_write), 10],
+      [fmtUsd(o.total_usd), 11],
+    ]),
+  );
 }
 
 function printDaily(db: ReturnType<typeof openDb>, days: number): void {
@@ -237,9 +251,20 @@ function printWasteSignals(
   }
   if (w.cache_waste_days.length > 0) {
     console.log('Cache-write-without-payoff days (wrote more than read back):');
+    console.log(
+      row([
+        ['  day', -12],
+        ['cache_w', 9],
+        ['cache_r', 9],
+      ]),
+    );
     for (const d of w.cache_waste_days) {
       console.log(
-        `  ${d.day}   write ${fmtTokens(d.cache_write)}  >  read ${fmtTokens(d.cache_read)}`,
+        row([
+          [`  ${d.day}`, -12],
+          [fmtTokens(d.cache_write), 9],
+          [fmtTokens(d.cache_read), 9],
+        ]),
       );
     }
   }
@@ -434,6 +459,9 @@ async function main(): Promise<void> {
           'see https://token-meter.dev#pricing',
       );
     }
+    console.log(
+      '\nFormatted lean on purpose — a token meter should not waste tokens, not even its own output.',
+    );
     return;
   }
 
