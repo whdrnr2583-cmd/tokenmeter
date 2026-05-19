@@ -4,9 +4,9 @@ import { join } from 'node:path';
 import type Database from 'better-sqlite3';
 import { getIngestState, insertTokenEvents, recordIngest } from './db.js';
 import { parseCodexSession } from './codex-parser.js';
-// isWsl / detectWindowsUser live in ingest.ts. This forms a benign import
-// cycle — both are hoisted functions, called only at runtime.
-import { isWsl, detectWindowsUser } from './ingest.js';
+// isWsl lives in ingest.ts. This forms a benign import cycle — it is a
+// hoisted function, called only at runtime.
+import { isWsl } from './ingest.js';
 
 export interface CodexIngestSummary {
   files_scanned: number;
@@ -20,19 +20,27 @@ export function codexSessionsDir(): string {
 }
 
 /**
- * All Codex session directories to scan. On WSL this also includes the
- * Windows-side path (/mnt/c/Users/<winuser>/.codex/sessions) so a Codex
- * install on the Windows host is not silently skipped — mirrors
- * claudeProjectsDirs() in ingest.ts.
+ * All Codex session directories to scan. On WSL this also scans every Windows
+ * user profile that actually has a `.codex/sessions` directory, so a Codex
+ * install on the Windows host is picked up. It looks for the data directly
+ * instead of guessing the Windows username: USERPROFILE is often unset under
+ * WSL, and the first /mnt/c/Users entry can be a sandbox/system account
+ * (e.g. "CodexSandboxOffline"), not the real user.
  */
 export function codexSessionsDirs(): string[] {
-  const primary = codexSessionsDir();
-  const dirs: string[] = [primary];
+  const dirs: string[] = [codexSessionsDir()];
   if (isWsl()) {
-    const winUser = detectWindowsUser();
-    if (winUser) {
-      const winPath = `/mnt/c/Users/${winUser}/.codex/sessions`;
-      if (winPath !== primary) dirs.push(winPath);
+    try {
+      const usersRoot = '/mnt/c/Users';
+      for (const e of readdirSync(usersRoot, { withFileTypes: true })) {
+        if (!e.isDirectory()) continue;
+        const candidate = `${usersRoot}/${e.name}/.codex/sessions`;
+        if (existsSync(candidate) && !dirs.includes(candidate)) {
+          dirs.push(candidate);
+        }
+      }
+    } catch {
+      /* /mnt/c/Users absent — not a typical WSL-on-Windows setup */
     }
   }
   return dirs;
