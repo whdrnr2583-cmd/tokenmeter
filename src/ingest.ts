@@ -28,10 +28,19 @@ export function claudeProjectsDir(): string {
   return join(homedir(), '.claude', 'projects');
 }
 
-// Project name from Claude Code's URL-encoded directory naming.
-// e.g. "C--Users-whdrn-Desktop-money" → "C:\Users\whdrn\Desktop\money"
+// Decode Claude Code's project-directory name back to a path. Lossy fallback
+// only — the parser prefers the JSONL `cwd` field. Windows dirs look like
+// "C--Users-whdrn-Desktop"; POSIX dirs like "-mnt-c-Users-whdrn-claudeCode".
 function prettyProjectName(dirName: string): string {
-  return dirName.replace(/^C--/, 'C:\\').replace(/-/g, '\\').replace(/\\\\/g, '\\');
+  if (/^[A-Za-z]--/.test(dirName)) {
+    // Windows: "C--Users-whdrn-Desktop" → "C:\Users\whdrn\Desktop"
+    return dirName
+      .replace(/^([A-Za-z])--/, '$1:\\')
+      .replace(/-/g, '\\')
+      .replace(/\\{2,}/g, '\\');
+  }
+  // POSIX: "-mnt-c-Users-whdrn-claudeCode" → "/mnt/c/Users/whdrn/claudeCode"
+  return dirName.replace(/-/g, '/');
 }
 
 export function ingestClaudeCode(

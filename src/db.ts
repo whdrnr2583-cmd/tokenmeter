@@ -122,6 +122,20 @@ export function migrate(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_pending_notif_unconsumed
       ON pending_desktop_notifications(consumed_at, fired_at);
   `);
+
+  // One-time data fix (0.1.12): pre-0.1.12 ingests decoded POSIX project
+  // paths with a Windows-style backslash separator (e.g. "\mnt\c\Users").
+  // New ingests read the JSONL `cwd` field directly; this normalizes the
+  // already-stored rows so they merge with the corrected ones. Targets only
+  // claude-code rows that start with a backslash and contain no drive-letter
+  // colon — mangled POSIX paths, never real Windows paths. Idempotent: once
+  // run, no row matches the filter again.
+  for (const tbl of ['token_events', 'tool_events']) {
+    db.exec(
+      `UPDATE ${tbl} SET project = '/' || REPLACE(SUBSTR(project, 2), '\\', '/') ` +
+        `WHERE source = 'claude-code' AND project LIKE '\\%' AND project NOT LIKE '%:%';`,
+    );
+  }
 }
 
 export function insertTokenEvents(db: Database.Database, rows: TokenEvent[]): number {

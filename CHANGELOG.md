@@ -5,6 +5,30 @@ All notable changes to Token Meter.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.12] — 2026-05-19
+
+### Fixed
+- **Project paths on WSL / Linux / macOS were mangled with Windows-style
+  backslashes.** Ingest decoded Claude Code's project-directory name by
+  replacing every `-` with `\`, which assumes a Windows path — so a WSL
+  session at `/mnt/c/Users/you/app` was stored and shown as
+  `\mnt\c\Users\you\app`. That broke the `recent_sessions` resume command
+  (`cd "\mnt\c\..."` is not a valid target in a POSIX shell) for every
+  non-Windows user. The Claude Code parser now reads the real working
+  directory from the JSONL `cwd` field; the directory-name decode is kept
+  only as a fallback and is now path-style-aware (POSIX → `/`,
+  Windows → `\`).
+- **Existing rows migrate on next run.** `migrate()` normalizes
+  already-stored `claude-code` project paths that start with a backslash
+  and contain no drive-letter colon (mangled POSIX paths) back to `/`.
+  Idempotent; real Windows paths (`C:\...`) are untouched.
+
+### Note
+No new dependency, no schema change. Open the dashboard / MCP server (or
+run `ingest`) once on 0.1.12 to apply the migration.
+
+---
+
 ## [0.1.11] — 2026-05-19
 
 ### Added

@@ -39,10 +39,27 @@ export interface ParseResult {
   tools: ToolEvent[];
 }
 
-export function parseJsonlFile(filePath: string, projectName: string): ParseResult {
+export function parseJsonlFile(filePath: string, fallbackProject: string): ParseResult {
   const content = readFileSync(filePath, 'utf-8');
   const lines = content.split('\n');
   const sessionId = basename(filePath).replace(/\.jsonl$/, '');
+
+  // Project = the session's working directory, taken straight from the JSONL
+  // `cwd` field — the real, OS-correct path. The directory-name decode in
+  // ingest.ts is lossy and Windows-biased, so it is only a fallback.
+  let project = fallbackProject;
+  for (const line of lines) {
+    if (!line) continue;
+    try {
+      const meta = JSON.parse(line) as JsonlEntry;
+      if (meta.cwd) {
+        project = meta.cwd;
+        break;
+      }
+    } catch {
+      /* skip malformed line */
+    }
+  }
 
   const tokens: TokenEvent[] = [];
   const tools: ToolEvent[] = [];
@@ -85,7 +102,7 @@ export function parseJsonlFile(filePath: string, projectName: string): ParseResu
             source: 'claude-code',
             source_kind: 'cloud',
             model: m.model,
-            project: projectName,
+            project,
             session_id: session,
             request_id: entry.requestId ?? null,
             input_tokens: input,
@@ -124,7 +141,7 @@ export function parseJsonlFile(filePath: string, projectName: string): ParseResu
         tools.push({
           ts: paired.ts,
           source: 'claude-code',
-          project: projectName,
+          project,
           session_id: session,
           tool_name: paired.name,
           mcp_server: parseMcpServer(paired.name),
