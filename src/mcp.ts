@@ -70,8 +70,11 @@ export async function startMcpServer(): Promise<void> {
     {
       title: 'usage summary (Token Meter)',
       description:
-        'API-equivalent spend + token summary for Claude Code and Codex, by model/project/tool. Local data only.',
-      inputSchema: { period: z.enum(['today', 'week', 'month']).default('today') },
+        'What you spent, where it went, and what was slow — Claude Code + Codex. API-equivalent estimate, local data only. insights=true adds heuristic tips.',
+      inputSchema: {
+        period: z.enum(['today', 'week', 'month']).default('today'),
+        insights: z.boolean().default(false),
+      },
       annotations: {
         title: 'usage summary (Token Meter)',
         readOnlyHint: true,
@@ -80,31 +83,82 @@ export async function startMcpServer(): Promise<void> {
         openWorldHint: false,
       },
     },
-    async ({ period }) => {
+    async ({ period, insights }) => {
       const days = periodWindowDays(period);
       const o = overview(db, days);
-      const models = byModel(db, days).slice(0, 5);
-      const projects = byProject(db, days, 5);
-      const mcps = byMcp(db, days, 5);
+      const models = byModel(db, days);
+      const projects = byProject(db, days, 1);
+      const tools = byMcp(db, days, 100);
+      const periodLabel =
+        period === 'today' ? 'today' : period === 'week' ? 'last 7d' : 'last 30d';
+
+      const totalTok =
+        o.total_input + o.total_output + o.total_cache_read + o.total_cache_write;
+      const cacheShare =
+        totalTok > 0 ? Math.round((o.total_cache_read / totalTok) * 100) : 0;
+      const topModel = models[0];
+      const modelStr = topModel
+        ? `${topModel.model} ${Math.round((topModel.usd / (o.total_usd || 1)) * 100)}%`
+        : '—';
+      const topProject = projects[0]
+        ? (projects[0].project.split(/[\\/]/).filter(Boolean).pop() ?? projects[0].project)
+        : '—';
+
+      // Latency sink: slowest tool among those called at least 3x.
+      const slow = [...tools]
+        .filter((t) => t.calls >= 3)
+        .sort((a, b) => b.avg_latency_ms - a.avg_latency_ms)[0];
+      const heavy = tools.slice(0, 3);
+
       const lines = [
-        `Token Meter — ${period === 'today' ? 'today' : period === 'week' ? 'last 7d' : 'last 30d'}`,
-        `cost ${fmtUsd(o.total_usd)} (API-equiv) | events ${o.events.toLocaleString()} | output ${fmtTok(o.total_output)} | cache-read ${fmtTok(o.total_cache_read)}`,
-        'By model:',
-        ...models.map((m) => `  ${m.model} ${fmtUsd(m.usd)} (${m.events} ev)`),
-        'Top projects:',
-        ...projects.map((p) => {
-          const name = p.project.length > 50 ? '…' + p.project.slice(-50) : p.project;
-          return `  ${name} ${fmtUsd(p.usd)}`;
-        }),
-        'Top MCP / tools (by response tokens):',
-        ...(mcps.length > 0
-          ? mcps.map((m) => {
-              const where = m.mcp_server ? `${m.mcp_server}/` : '';
-              return `  ${where}${m.tool_name} calls=${m.calls} resp=${fmtTok(m.total_response_tokens)} avg=${Math.round(m.avg_latency_ms)}ms`;
-            })
-          : ['  (none in window)']),
-        'Note: API-equivalent estimate, not a vendor invoice.',
+        `Token Meter · ${periodLabel}`,
+        `${fmtUsd(o.total_usd)} spent (API-equiv) · ${fmtTok(totalTok)} tokens (${cacheShare}% cache reuse) · ${o.events.toLocaleString()} API calls`,
+        `Where: ${modelStr} · project ${topProject}`,
+        slow
+          ? `Slowest: ${slow.mcp_server ? slow.mcp_server + '/' : ''}${slow.tool_name} ${(slow.avg_latency_ms / 1000).toFixed(1)}s avg (${slow.calls}x)`
+          : 'Slowest: — (no tool calls in window)',
       ];
+      if (heavy.length > 0) {
+        lines.push(
+          `Heaviest: ${heavy.map((t) => `${t.tool_name} ${fmtTok(t.total_response_tokens)}`).join(' · ')} (response tokens, est.)`,
+        );
+      }
+
+      if (insights) {
+        const tips: string[] = [];
+        if (period === 'today') {
+          const wk = overview(db, 7);
+          const dailyAvg = wk.total_usd / 7;
+          if (dailyAvg > 0) {
+            const r = o.total_usd / dailyAvg;
+            tips.push(
+              `today ${fmtUsd(o.total_usd)} vs 7-day daily avg ${fmtUsd(dailyAvg)} — ${r >= 1.3 ? 'a heavy day' : r <= 0.7 ? 'a light day' : 'about typical'}`,
+            );
+          }
+        }
+        if (slow && slow.avg_latency_ms > 10_000) {
+          tips.push(
+            `${slow.tool_name} averages ${Math.round(slow.avg_latency_ms / 1000)}s — your latency sink; scope or batch these calls`,
+          );
+        }
+        if (cacheShare >= 80) {
+          tips.push(
+            `cache reuse is ${cacheShare}% of tokens — heavy context replay; on a flat-fee plan this is not billed per token`,
+          );
+        }
+        if (tips.length > 0) {
+          lines.push('Insights:');
+          for (const t of tips) lines.push(`• ${t}`);
+        }
+      }
+
+      lines.push(
+        'ⓘ API-equivalent estimate, not your vendor invoice · 100% local · this summary computed with 0 LLM calls',
+      );
+      lines.push(
+        'Pro: 30-day history · per-session drill-down · cache-efficiency $ saved · waste signals — token-meter.dev',
+      );
+
       return { content: [{ type: 'text', text: lines.join('\n') }] };
     },
   );
