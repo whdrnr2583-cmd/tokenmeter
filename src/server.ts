@@ -3,7 +3,7 @@ import fastifyStatic from '@fastify/static';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { migrate, openDb } from './db.js';
-import { ingestAll } from './ingest.js';
+import { ingestAll, ensureFirstRunData } from './ingest.js';
 import { byHour, byMcp, byModel, byProject, daily, overview } from './stats.js';
 import {
   createRule,
@@ -104,8 +104,12 @@ export async function startDashboard(): Promise<void> {
   const PORT = Number.parseInt(process.env.PORT ?? '8765', 10);
   const db = openDb();
   migrate(db);
-  // Initial ingest on boot.
-  ingestAll(db);
+  // First-run guard: auto-ingest on boot, and tell the operator in the
+  // terminal when no logs were found instead of serving a blank dashboard.
+  const firstRun = ensureFirstRunData(db);
+  if (firstRun.guidance) {
+    console.log(`\n${firstRun.guidance}\n`);
+  }
 
   const app = Fastify({ logger: false });
 
@@ -125,6 +129,16 @@ export async function startDashboard(): Promise<void> {
       message: `${feature} is a Pro feature. See https://token-meter.dev#pricing`,
     };
   }
+
+  // First-run / empty-data status for the dashboard empty-state banner.
+  app.get('/api/status', async () => {
+    const total = overview(db, 100_000); // all-time event count
+    return {
+      has_data: total.events > 0,
+      total_events: total.events,
+      guidance: total.events > 0 ? '' : ensureFirstRunData(db).guidance,
+    };
+  });
 
   app.get('/api/overview', async (req) => {
     const days = daysFromQuery((req.query as Record<string, unknown>).days);

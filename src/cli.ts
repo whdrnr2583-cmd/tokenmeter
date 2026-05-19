@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
 import { migrate, openDb } from './db.js';
-import { ingestAll } from './ingest.js';
+import { ingestAll, ensureFirstRunData } from './ingest.js';
 import {
   byMcp,
   byModel,
@@ -431,6 +431,24 @@ async function main(): Promise<void> {
   }
 
   if (cmd === 'stats' || cmd === undefined) {
+    // First-run guard: a brand-new install has an empty DB. Auto-ingest once
+    // so `stats` is not a wall of zeros; if no logs exist, guide instead.
+    const firstRun = ensureFirstRunData(db);
+    if (firstRun.wasEmpty && firstRun.rowsAfter > 0) {
+      console.error(
+        `First run — scanned your logs and found ${firstRun.rowsAfter} events. ` +
+          'Run `token-meter ingest` any time to refresh.',
+      );
+    }
+    if (firstRun.guidance) {
+      console.log(`\n${firstRun.guidance}\n`);
+      console.log(
+        'Once you have usage, `token-meter stats` shows your cost breakdown, ' +
+          '`token-meter serve` opens the dashboard.',
+      );
+      return;
+    }
+
     const daysArg = rest.find((s) => /^\d+$/.test(s));
     const requested = daysArg ? Number.parseInt(daysArg, 10) : 30;
     const ent = getEntitlement();

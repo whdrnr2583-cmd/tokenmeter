@@ -7,9 +7,10 @@ import {
   insertToolEvents,
   recordIngest,
   getIngestState,
+  countTokenEvents,
 } from './db.js';
 import { parseJsonlFile } from './parser.js';
-import { ingestCodex } from './codex-ingest.js';
+import { ingestCodex, codexSessionsDirs } from './codex-ingest.js';
 
 export interface IngestSummary {
   files_scanned: number;
@@ -177,4 +178,95 @@ export function ingestAll(
     claude_code: ingestClaudeCode(db, options),
     codex: ingestCodex(db, options),
   };
+}
+
+export interface FirstRunResult {
+  /** True when the DB was empty on entry — i.e. this was a first run. */
+  wasEmpty: boolean;
+  /** True when an ingest was triggered by this call (only when wasEmpty). */
+  ingested: boolean;
+  /** Rows present in token_events after the (possible) ingest. */
+  rowsAfter: number;
+  /**
+   * Human-readable guidance to show the user when no data could be found.
+   * Empty string when there is data. Plain text, safe for stdout/stderr,
+   * MCP tool output, and dashboard logs.
+   */
+  guidance: string;
+}
+
+/**
+ * Tells whether any Claude Code / Codex log directories exist on disk. Used
+ * to tailor the empty-DB guidance: "no logs found" vs "logs exist, re-scan".
+ */
+function anyLogDirExists(): boolean {
+  for (const d of claudeProjectsDirs()) {
+    if (existsSync(d)) return true;
+  }
+  for (const d of codexSessionsDirs()) {
+    if (existsSync(d)) return true;
+  }
+  return false;
+}
+
+export interface EnsureFirstRunOptions {
+  /**
+   * Ingest implementation to run on an empty DB. Defaults to the real
+   * `ingestAll` (scans ~/.claude + ~/.codex). Injectable so tests can
+   * exercise the "no logs found" branch deterministically without touching
+   * the developer machine's real logs.
+   */
+  ingest?: (db: Database.Database) => void;
+}
+
+/**
+ * First-run guard shared by every entry point (CLI `stats`, dashboard,
+ * MCP server). When the DB has never been populated, runs one ingest so the
+ * user is not greeted by a wall of zeros. If still empty afterwards (no logs
+ * on disk, or logs with no usage), returns plain-text `guidance` telling the
+ * user exactly what to do next — never a silent empty screen.
+ *
+ * Idempotent and cheap once the DB has data: a single COUNT, then it returns
+ * immediately with `wasEmpty: false`.
+ */
+export function ensureFirstRunData(
+  db: Database.Database,
+  options: EnsureFirstRunOptions = {},
+): FirstRunResult {
+  const before = countTokenEvents(db);
+  if (before > 0) {
+    return { wasEmpty: false, ingested: false, rowsAfter: before, guidance: '' };
+  }
+
+  // Empty DB — this is a first run. Try one ingest.
+  const ingest = options.ingest ?? ((d: Database.Database) => ingestAll(d));
+  let ingested = false;
+  try {
+    ingest(db);
+    ingested = true;
+  } catch {
+    /* non-fatal — fall through to the guidance below */
+  }
+  const after = countTokenEvents(db);
+  if (after > 0) {
+    return { wasEmpty: true, ingested, rowsAfter: after, guidance: '' };
+  }
+
+  // Still empty after ingest — no usage data was found anywhere.
+  const guidance = anyLogDirExists()
+    ? [
+        'No Claude Code or Codex usage found yet.',
+        'Token Meter reads ~/.claude/projects and ~/.codex/sessions — the log',
+        'directories exist but hold no usage to report. Use Claude Code or Codex',
+        'for a session, then run `token-meter ingest` (or just rerun this).',
+      ].join('\n')
+    : [
+        'No Claude Code or Codex logs found on this machine.',
+        'Token Meter reads local JSONL logs from ~/.claude/projects and',
+        '~/.codex/sessions. Neither directory exists yet — use Claude Code or',
+        'Codex at least once, then run `token-meter ingest`.',
+        'On WSL it also scans /mnt/c/Users/*/.claude — if your AI tool runs on',
+        'the Windows side, that path is covered automatically.',
+      ].join('\n');
+  return { wasEmpty: true, ingested, rowsAfter: 0, guidance };
 }

@@ -223,3 +223,15 @@ export function getIngestState(
     .prepare(`SELECT mtime_ms, size FROM ingest_state WHERE file = ?`)
     .get(file) as { mtime_ms: number; size: number } | undefined;
 }
+
+/**
+ * Total rows in token_events. Used for first-run detection — a brand-new
+ * install has an empty DB until the first ingest runs. Cheap COUNT on an
+ * indexed table; safe to call on every command.
+ */
+export function countTokenEvents(db: Database.Database): number {
+  const row = db
+    .prepare(`SELECT COUNT(*) AS n FROM token_events`)
+    .get() as { n: number };
+  return row.n;
+}

@@ -1,10 +1,11 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { migrate, openDb } from './db.js';
-import { ingestAll } from './ingest.js';
+import { countTokenEvents, migrate, openDb } from './db.js';
+import { ingestAll, ensureFirstRunData } from './ingest.js';
 import { byMcp, byModel, byProject, overview } from './stats.js';
 import { recentSessions, sessionToolSummary } from './sessions.js';
+import { readFileSync } from 'node:fs';
 
 function fmtUsd(n: number): string {
   return `$${n.toFixed(2)}`;
@@ -21,6 +22,20 @@ function ageStr(minutes: number): string {
   const d = Math.floor(h / 24);
   return `${d}d ${h - d * 24}h ago`;
 }
+
+/** This package's version, read from package.json — keeps the MCP server's
+ *  advertised version in sync with the real release instead of hardcoding. */
+function serverVersion(): string {
+  try {
+    const pkg = JSON.parse(
+      readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+    ) as { version?: string };
+    return pkg.version ?? '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
+
 /**
  * Window length in days for a usage period. `today` is the current *local
  * calendar day* (local midnight → now), returned as a fractional day count so
@@ -37,9 +52,14 @@ export function periodWindowDays(p: 'today' | 'week' | 'month'): number {
 export async function startMcpServer(): Promise<void> {
   const db = openDb();
   migrate(db);
-  // Fresh data at startup; cheap (incremental).
+  // Fresh data at startup (incremental, cheap), then the first-run guard:
+  // `firstRunGuidance` is non-empty only when no Claude Code / Codex logs could
+  // be found — tools surface it so the agent tells the user what to do instead
+  // of reporting an empty period as if it were a real $0.00 month.
+  let firstRunGuidance = '';
   try {
     ingestAll(db);
+    firstRunGuidance = ensureFirstRunData(db).guidance;
   } catch {
     /* non-fatal */
   }
@@ -47,7 +67,7 @@ export async function startMcpServer(): Promise<void> {
   const server = new McpServer(
     {
       name: 'token-meter',
-      version: '0.1.0',
+      version: serverVersion(),
     },
     {
       // Surfaced to the client at connect — lets the agent answer
@@ -84,6 +104,22 @@ export async function startMcpServer(): Promise<void> {
       },
     },
     async ({ period, insights }) => {
+      // First-run / empty-DB short-circuit: do not report "$0.00 spent" as if
+      // it were a real period — the agent should tell the user how to get data.
+      if (countTokenEvents(db) === 0) {
+        const guide =
+          firstRunGuidance ||
+          'No Claude Code or Codex usage found yet. Use Claude Code or Codex, ' +
+            'then run `token-meter ingest` (or the refresh_data tool).';
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Token Meter has no usage data yet.\n${guide}`,
+            },
+          ],
+        };
+      }
       const days = periodWindowDays(period);
       const o = overview(db, days);
       const models = byModel(db, days);
@@ -184,6 +220,18 @@ export async function startMcpServer(): Promise<void> {
     async ({ within_hours, limit }) => {
       const rows = recentSessions(db, within_hours, limit);
       if (rows.length === 0) {
+        // Distinguish a first run (no data at all) from a genuine quiet window.
+        if (countTokenEvents(db) === 0) {
+          const guide =
+            firstRunGuidance ||
+            'No Claude Code or Codex usage found yet. Use Claude Code or Codex, ' +
+              'then run `token-meter ingest` (or the refresh_data tool).';
+          return {
+            content: [
+              { type: 'text', text: `Token Meter has no usage data yet.\n${guide}` },
+            ],
+          };
+        }
         return {
           content: [
             { type: 'text', text: `No sessions with activity in the last ${within_hours}h.` },

@@ -41,6 +41,34 @@ function makeCard(label, value, sub, accent) {
   return node;
 }
 
+// First-run / empty-data banner. When no logs have been ingested yet the
+// charts and tables would all be blank with no explanation — show the user
+// exactly what to do instead. Returns true when the dashboard has data.
+async function renderEmptyState() {
+  const box = $('#empty-state');
+  let status;
+  try {
+    status = await api('/api/status');
+  } catch {
+    box.hidden = true;
+    return true; // status check failed — fall through to the normal render
+  }
+  if (status.has_data) {
+    box.hidden = true;
+    return true;
+  }
+  const guide = esc(status.guidance || 'No Claude Code or Codex usage found yet.');
+  box.innerHTML = `
+    <h2>아직 사용 데이터가 없습니다</h2>
+    <p>${guide.replace(/\n/g, '<br>')}</p>
+    <p>Claude Code / Codex를 한 번 사용한 뒤 터미널에서
+       <code>token-meter ingest</code> 를 실행하거나 우측 상단
+       <strong>↻ 새로고침</strong> 을 누르세요.</p>
+  `;
+  box.hidden = false;
+  return false;
+}
+
 async function renderOverview() {
   const data = await api(`/api/overview?days=${STATE.days}`);
   const wrap = $('#overview-cards');
@@ -571,6 +599,7 @@ document.querySelectorAll('.dialog-tabs .tab').forEach((b) => {
 });
 
 async function refreshAll() {
+  await renderEmptyState();
   await Promise.all([
     renderOverview(),
     renderSources(),

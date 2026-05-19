@@ -75,6 +75,26 @@ main { padding: 20px 24px 60px; max-width: 1400px; margin: 0 auto; }
 .disclaimer em { color: var(--warn); font-style: normal; }
 .warn-text { display: block; margin-top: 4px; font-size: 11px; color: var(--warn); line-height: 1.4; }
 
+#empty-state {
+  margin: 0 0 16px;
+  padding: 16px 18px;
+  background: rgba(88, 166, 255, 0.08);
+  border: 1px solid rgba(88, 166, 255, 0.4);
+  border-radius: 8px;
+  color: var(--text);
+  line-height: 1.55;
+}
+#empty-state h2 { margin: 0 0 6px; font-size: 15px; }
+#empty-state p { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+#empty-state code {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  background: var(--panel-2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--text);
+}
+
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
