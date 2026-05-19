@@ -46,7 +46,7 @@
     "prepublishOnly": "npm run typecheck && npm test && npm run build"
   },
   "files": [
-    "dist",
+    "dist/*.js",
     "public",
     "docs",
     "README.md",

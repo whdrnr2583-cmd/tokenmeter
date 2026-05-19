@@ -50,6 +50,8 @@ Manual one-liners (if you'd rather not run our installer):
 
 Then ask: *"Use token-meter to show my recent sessions"* or *"Use token-meter usage_summary for this week"*.
 
+> **Claude Code shortcut:** run `npx -y @whdrnr2583/token-meter install-command claude-code` once to register the `/token-meter` slash command. After reopening your session, type `/token-meter` for a one-shot summary without natural language.
+
 Full setup + verification + troubleshooting: **[docs/mcp-server.md](docs/mcp-server.md)**.
 
 Storage: `~/.tokenpulse/usage.db` (SQLite). Remove the folder to start over.

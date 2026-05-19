@@ -30,3 +30,6 @@ tsconfig.json
 *.db
 *.db-wal
 *.db-shm
+
+# Source maps — not needed by consumers, adds ~50% tarball bloat
+dist/*.map

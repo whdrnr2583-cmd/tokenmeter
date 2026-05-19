@@ -68,12 +68,12 @@ export async function startMcpServer(): Promise<void> {
   server.registerTool(
     'usage_summary',
     {
-      title: 'Token Meter — usage summary',
+      title: 'usage summary (Token Meter)',
       description:
         'API-equivalent spend + token summary for Claude Code and Codex, by model/project/tool. Local data only.',
       inputSchema: { period: z.enum(['today', 'week', 'month']).default('today') },
       annotations: {
-        title: 'Token Meter — usage summary',
+        title: 'usage summary (Token Meter)',
         readOnlyHint: true,
         destructiveHint: false,
         idempotentHint: true,
@@ -112,15 +112,15 @@ export async function startMcpServer(): Promise<void> {
   server.registerTool(
     'recent_sessions',
     {
-      title: 'Token Meter — recent sessions',
+      title: 'recent sessions (Token Meter)',
       description:
         'List recently-active Claude Code / Codex sessions with ready-to-paste resume commands.',
       inputSchema: {
         within_hours: z.number().int().min(1).max(720).default(24),
-        limit: z.number().int().min(1).max(50).default(15),
+        limit: z.number().int().min(1).max(50).default(5),
       },
       annotations: {
-        title: 'Token Meter — recent sessions',
+        title: 'recent sessions (Token Meter)',
         readOnlyHint: true,
         destructiveHint: false,
         idempotentHint: true,
@@ -140,10 +140,11 @@ export async function startMcpServer(): Promise<void> {
         `Recent sessions (last ${within_hours}h) — newest first:`,
         ...rows.map((r) => {
           const tool = r.source === 'claude-code' ? 'claude --resume' : 'codex resume';
+          const shortId = r.session_id.slice(0, 8);
           return [
             `• ${ageStr(r.age_minutes)} | ${r.source} | ${fmtUsd(r.total_usd)} | ${r.events} ev`,
-            `  session: ${r.session_id}`,
-            `  resume: cd "${r.project}" && ${tool}`,
+            `  session: ${shortId}… (full id for session_tools: ${r.session_id})`,
+            `  resume: cd "${r.project}" && ${tool} ${r.session_id}`,
           ].join('\n');
         }),
       ];
@@ -154,7 +155,7 @@ export async function startMcpServer(): Promise<void> {
   server.registerTool(
     'session_tools',
     {
-      title: 'Token Meter — session tools',
+      title: 'session tools (Token Meter)',
       description:
         'Per-session MCP / built-in tool breakdown: call counts, response sizes, average latency. Debug a slow/expensive session.',
       inputSchema: {
@@ -162,7 +163,7 @@ export async function startMcpServer(): Promise<void> {
         limit: z.number().int().min(1).max(100).default(20),
       },
       annotations: {
-        title: 'Token Meter — session tools',
+        title: 'session tools (Token Meter)',
         readOnlyHint: true,
         destructiveHint: false,
         idempotentHint: true,
@@ -192,7 +193,7 @@ export async function startMcpServer(): Promise<void> {
   server.registerTool(
     'refresh_data',
     {
-      title: 'Token Meter — refresh data',
+      title: 'refresh data (Token Meter)',
       description:
         'Re-scan local Claude Code / Codex JSONL for new activity. Run before other tools for up-to-the-minute numbers.',
       inputSchema: {},
@@ -200,7 +201,7 @@ export async function startMcpServer(): Promise<void> {
       // SQLite DB. Insert-only (INSERT OR IGNORE, D-027 dedup) so it is
       // non-destructive and idempotent on re-run. Local files only — no vendor APIs.
       annotations: {
-        title: 'Token Meter — refresh data',
+        title: 'refresh data (Token Meter)',
         readOnlyHint: false,
         destructiveHint: false,
         idempotentHint: true,
@@ -228,7 +229,7 @@ export async function startMcpServer(): Promise<void> {
   server.registerPrompt(
     'usage_summary',
     {
-      title: 'Token Meter — usage summary',
+      title: 'usage summary (Token Meter)',
       description: 'Summarize Claude Code + Codex usage for today / week / month.',
       argsSchema: {
         period: z.string().optional().describe('today | week | month (default: today)'),
@@ -253,7 +254,7 @@ export async function startMcpServer(): Promise<void> {
   server.registerPrompt(
     'recent_sessions',
     {
-      title: 'Token Meter — recent sessions',
+      title: 'recent sessions (Token Meter)',
       description: 'List recent Claude Code / Codex sessions with ready-to-paste resume commands.',
       argsSchema: {
         within_hours: z.string().optional().describe('hours to look back, 1-720 (default: 24)'),
@@ -279,7 +280,7 @@ export async function startMcpServer(): Promise<void> {
   server.registerPrompt(
     'session_tools',
     {
-      title: 'Token Meter — session tools',
+      title: 'session tools (Token Meter)',
       description: 'Show MCP / built-in tool breakdown for a specific session_id.',
       argsSchema: {
         session_id: z.string().describe('the session_id to inspect'),
@@ -306,7 +307,7 @@ export async function startMcpServer(): Promise<void> {
   server.registerPrompt(
     'refresh_data',
     {
-      title: 'Token Meter — refresh data',
+      title: 'refresh data (Token Meter)',
       description: 'Re-scan local JSONL files to pick up new Claude Code / Codex activity.',
     },
     () => ({
