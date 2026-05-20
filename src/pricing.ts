@@ -1,7 +1,7 @@
 // Anthropic + OpenAI pricing (USD per million tokens) — updated 2026-05.
 // Single source of truth. Heuristics only; no LLM call.
 
-export interface ModelPrice {
+interface ModelPrice {
   input: number;
   output: number;
   cacheRead: number;
@@ -43,9 +43,8 @@ function resolveModel(model: string): ModelPrice {
 }
 
 /**
- * Per-million-token rates for a model (after family-fallback resolution).
- * Exposed so cache-efficiency math can compare input vs cache-read rates
- * without re-deriving the price table. Heuristic only; no LLM call.
+ * Per-million pricing for a model (input, output, cache read, cache write 5m).
+ * Used by stats.ts/cacheStats to compute savings vs. raw-input cost.
  */
 export function modelRates(model: string): ModelPrice {
   return resolveModel(model);

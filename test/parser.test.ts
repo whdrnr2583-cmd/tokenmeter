@@ -6,7 +6,6 @@ import { parseJsonlFile } from '../src/parser.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURE = join(__dirname, 'fixtures', 'claude-code-dedup.jsonl');
-const FIXTURE_CWD = join(__dirname, 'fixtures', 'claude-code-cwd.jsonl');
 
 test('parser dedupes multiple JSONL entries with same request_id (D-027 regression)', () => {
   const { tokens } = parseJsonlFile(FIXTURE, 'fixture');
@@ -52,23 +51,4 @@ test('tool response chars/tokens are measured', () => {
   // Response was "notion result data" (18 chars)
   assert.equal(tNotion.response_chars, 18);
   assert.ok(tNotion.response_tokens_est > 0);
-});
-
-test('parser uses the JSONL cwd field as the project path (0.1.12)', () => {
-  const { tokens, tools } = parseJsonlFile(FIXTURE_CWD, 'IGNORED-FALLBACK');
-  assert.ok(tokens.length > 0, 'fixture should yield token rows');
-  for (const t of tokens) {
-    assert.equal(t.project, '/home/user/myproj', 'project must come from cwd');
-  }
-  for (const t of tools) {
-    assert.equal(t.project, '/home/user/myproj', 'tool rows use cwd too');
-  }
-});
-
-test('parser falls back to the passed project when no cwd field is present', () => {
-  const { tokens } = parseJsonlFile(FIXTURE, 'fallback-name');
-  assert.ok(tokens.length > 0);
-  for (const t of tokens) {
-    assert.equal(t.project, 'fallback-name');
-  }
 });

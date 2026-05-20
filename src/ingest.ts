@@ -10,7 +10,7 @@ import {
   countTokenEvents,
 } from './db.js';
 import { parseJsonlFile } from './parser.js';
-import { ingestCodex, codexSessionsDirs } from './codex-ingest.js';
+import { ingestCodex, codexSessionsDir } from './codex-ingest.js';
 
 export interface IngestSummary {
   files_scanned: number;
@@ -20,9 +20,23 @@ export interface IngestSummary {
   duration_ms: number;
 }
 
+export interface CodexIngestSummary {
+  files_scanned: number;
+  files_processed: number;
+  token_rows_inserted: number;
+  duration_ms: number;
+}
+
 export interface CombinedIngestSummary {
   claude_code: IngestSummary;
-  codex: { files_scanned: number; files_processed: number; token_rows_inserted: number; duration_ms: number };
+  codex: CodexIngestSummary;
+}
+
+export interface FirstRunResult {
+  wasEmpty: boolean;
+  ingested: boolean;
+  rowsAfter: number;
+  guidance: string;
 }
 
 /**
@@ -64,8 +78,8 @@ export function scanWindowsUserDirs(relPath: string): string[] {
 }
 
 /**
- * Primary Claude projects directory (always the home-dir one).
- * Kept for backward compatibility and for callers that just need a single path.
+ * Primary Claude projects directory (always the home-dir one). Kept for
+ * backward compatibility and for callers that just need a single path.
  */
 export function claudeProjectsDir(): string {
   return join(homedir(), '.claude', 'projects');
@@ -76,10 +90,6 @@ export function claudeProjectsDir(): string {
  * Windows-side /mnt/c/Users/<profile>/.claude/projects in addition to the
  * WSL home-dir path, so sessions from a Windows Claude Code install are not
  * silently skipped.
- *
- * Dedup note: Claude Code writes JSONL only to the host where it runs, and
- * the directories are distinct on-disk paths — the same session file cannot
- * appear in both, so there is no double-counting at the file level.
  */
 export function claudeProjectsDirs(): string[] {
   const dirs = [claudeProjectsDir()];
@@ -94,13 +104,11 @@ export function claudeProjectsDirs(): string[] {
 // "C--Users-whdrn-Desktop"; POSIX dirs like "-mnt-c-Users-whdrn-claudeCode".
 function prettyProjectName(dirName: string): string {
   if (/^[A-Za-z]--/.test(dirName)) {
-    // Windows: "C--Users-whdrn-Desktop" → "C:\Users\whdrn\Desktop"
     return dirName
       .replace(/^([A-Za-z])--/, '$1:\\')
       .replace(/-/g, '\\')
       .replace(/\\{2,}/g, '\\');
   }
-  // POSIX: "-mnt-c-Users-whdrn-claudeCode" → "/mnt/c/Users/whdrn/claudeCode"
   return dirName.replace(/-/g, '/');
 }
 
@@ -117,35 +125,50 @@ export function ingestClaudeCode(
     tool_rows_inserted: 0,
     duration_ms: 0,
   };
-
   for (const baseDir of baseDirs) {
     if (!existsSync(baseDir)) continue;
-
     const projectDirs = readdirSync(baseDir, { withFileTypes: true })
       .filter((d) => d.isDirectory())
       .map((d) => d.name);
-
     for (const dirName of projectDirs) {
       const projectPath = join(baseDir, dirName);
       const prettyName = prettyProjectName(dirName);
-
+      // Collect .jsonl files at the project root AND under any
+      // <sessionId>/subagents/ directory. Claude Code writes each sub-agent
+      // (Task / Agent tool call) into its own file at
+      //   <project>/<sessionId>/subagents/agent-<id>.jsonl
+      // Those carry the Haiku / Sonnet rows when a parent session spawns a
+      // sub-agent with an overridden model. Skipping the dir left those rows
+      // invisible — the per-day model breakdown then under-counted Haiku.
       let files: string[];
       try {
-        files = readdirSync(projectPath).filter((f) => f.endsWith('.jsonl'));
+        const entries = readdirSync(projectPath, { withFileTypes: true });
+        files = entries
+          .filter((e) => e.isFile() && e.name.endsWith('.jsonl'))
+          .map((e) => join(projectPath, e.name));
+        for (const e of entries) {
+          if (!e.isDirectory()) continue;
+          const subDir = join(projectPath, e.name, 'subagents');
+          if (!existsSync(subDir)) continue;
+          try {
+            for (const sf of readdirSync(subDir)) {
+              if (sf.endsWith('.jsonl')) files.push(join(subDir, sf));
+            }
+          } catch {
+            /* unreadable subdir — skip silently */
+          }
+        }
       } catch {
         continue;
       }
-
-      for (const f of files) {
-        const filePath = join(projectPath, f);
+      for (const filePath of files) {
         summary.files_scanned++;
-        let st;
+        let st: ReturnType<typeof statSync>;
         try {
           st = statSync(filePath);
         } catch {
           continue;
         }
-
         const prior = getIngestState(db, filePath);
         const unchanged =
           !options.force &&
@@ -153,19 +176,16 @@ export function ingestClaudeCode(
           prior.mtime_ms === Math.floor(st.mtimeMs) &&
           prior.size === st.size;
         if (unchanged) continue;
-
         const { tokens, tools } = parseJsonlFile(filePath, prettyName);
         const ti = insertTokenEvents(db, tokens);
         const tl = insertToolEvents(db, tools);
         recordIngest(db, filePath, Math.floor(st.mtimeMs), st.size);
-
         summary.files_processed++;
         summary.token_rows_inserted += ti;
         summary.tool_rows_inserted += tl;
       }
     }
   }
-
   summary.duration_ms = Date.now() - start;
   return summary;
 }
@@ -180,43 +200,17 @@ export function ingestAll(
   };
 }
 
-export interface FirstRunResult {
-  /** True when the DB was empty on entry — i.e. this was a first run. */
-  wasEmpty: boolean;
-  /** True when an ingest was triggered by this call (only when wasEmpty). */
-  ingested: boolean;
-  /** Rows present in token_events after the (possible) ingest. */
-  rowsAfter: number;
-  /**
-   * Human-readable guidance to show the user when no data could be found.
-   * Empty string when there is data. Plain text, safe for stdout/stderr,
-   * MCP tool output, and dashboard logs.
-   */
-  guidance: string;
-}
-
-/**
- * Tells whether any Claude Code / Codex log directories exist on disk. Used
- * to tailor the empty-DB guidance: "no logs found" vs "logs exist, re-scan".
- */
 function anyLogDirExists(): boolean {
   for (const d of claudeProjectsDirs()) {
     if (existsSync(d)) return true;
   }
-  for (const d of codexSessionsDirs()) {
+  // codex-ingest only exports the home-dir path (singular) in v0.1.8 src;
+  // also check WSL → Windows fallbacks here to keep the answer correct on WSL.
+  if (existsSync(codexSessionsDir())) return true;
+  for (const d of scanWindowsUserDirs('.codex/sessions')) {
     if (existsSync(d)) return true;
   }
   return false;
-}
-
-export interface EnsureFirstRunOptions {
-  /**
-   * Ingest implementation to run on an empty DB. Defaults to the real
-   * `ingestAll` (scans ~/.claude + ~/.codex). Injectable so tests can
-   * exercise the "no logs found" branch deterministically without touching
-   * the developer machine's real logs.
-   */
-  ingest?: (db: Database.Database) => void;
 }
 
 /**
@@ -226,19 +220,16 @@ export interface EnsureFirstRunOptions {
  * on disk, or logs with no usage), returns plain-text `guidance` telling the
  * user exactly what to do next — never a silent empty screen.
  *
- * Idempotent and cheap once the DB has data: a single COUNT, then it returns
- * immediately with `wasEmpty: false`.
+ * Idempotent and cheap once the DB has data.
  */
 export function ensureFirstRunData(
   db: Database.Database,
-  options: EnsureFirstRunOptions = {},
+  options: { ingest?: (db: Database.Database) => unknown } = {},
 ): FirstRunResult {
   const before = countTokenEvents(db);
   if (before > 0) {
     return { wasEmpty: false, ingested: false, rowsAfter: before, guidance: '' };
   }
-
-  // Empty DB — this is a first run. Try one ingest.
   const ingest = options.ingest ?? ((d: Database.Database) => ingestAll(d));
   let ingested = false;
   try {
@@ -251,8 +242,6 @@ export function ensureFirstRunData(
   if (after > 0) {
     return { wasEmpty: true, ingested, rowsAfter: after, guidance: '' };
   }
-
-  // Still empty after ingest — no usage data was found anywhere.
   const guidance = anyLogDirExists()
     ? [
         'No Claude Code or Codex usage found yet.',

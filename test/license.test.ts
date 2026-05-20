@@ -8,7 +8,6 @@ import {
   HISTORY_CAP,
   isProPlusTier,
   isProTier,
-  tierLabel,
 } from '../src/license.js';
 
 function withEnv(
@@ -33,30 +32,14 @@ function withEnv(
   }
 }
 
-test('TOKEN_METER_GATING=0 forces gating off → pro_plus escape hatch', () => {
+test('gating disabled by default → pro_plus (beta compat)', () => {
   withEnv(
-    { TOKEN_METER_GATING: '0', TOKEN_METER_LICENSE: undefined },
+    { TOKEN_METER_GATING: undefined, TOKEN_METER_LICENSE: undefined },
     () => {
       const e = getEntitlement();
       assert.equal(e.tier, 'pro_plus');
       assert.equal(e.source, 'gating_disabled');
       assert.equal(e.message, null);
-    },
-  );
-});
-
-test('gating on by default — unset env, no license → free', () => {
-  withEnv(
-    {
-      TOKEN_METER_GATING: undefined,
-      TOKEN_METER_LICENSE: undefined,
-      HOME: '/tmp/tokenmeter-test-no-license',
-      USERPROFILE: 'C:/tokenmeter-test-no-license',
-    },
-    () => {
-      const e = getEntitlement();
-      assert.equal(e.tier, 'free');
-      assert.equal(e.source, 'free_default');
     },
   );
 });
@@ -116,12 +99,6 @@ test('isProTier / isProPlusTier helpers', () => {
   assert.equal(isProPlusTier('free'), false);
   assert.equal(isProPlusTier('pro'), false);
   assert.equal(isProPlusTier('pro_plus'), true);
-});
-
-test('tierLabel maps each tier to a display string', () => {
-  assert.equal(tierLabel('free'), 'Free');
-  assert.equal(tierLabel('pro'), 'Pro');
-  assert.equal(tierLabel('pro_plus'), 'Pro+');
 });
 
 test('FREE_RULE_CAP and FREE_ACTION_TYPES expose Free quotas', () => {

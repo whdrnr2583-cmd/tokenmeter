@@ -1,11 +1,19 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { readFileSync } from 'node:fs';
 import { countTokenEvents, migrate, openDb } from './db.js';
 import { ingestAll, ensureFirstRunData } from './ingest.js';
-import { byMcp, byModel, byProject, overview } from './stats.js';
+import {
+  byMcp,
+  byModel,
+  byProject,
+  dailyByModel,
+  overview,
+  type DailyByModelRow,
+  type ScopeFilter,
+} from './stats.js';
 import { recentSessions, sessionToolSummary } from './sessions.js';
-import { readFileSync } from 'node:fs';
 
 function fmtUsd(n: number): string {
   return `$${n.toFixed(2)}`;
@@ -23,8 +31,10 @@ function ageStr(minutes: number): string {
   return `${d}d ${h - d * 24}h ago`;
 }
 
-/** This package's version, read from package.json — keeps the MCP server's
- *  advertised version in sync with the real release instead of hardcoding. */
+/**
+ * The package's version, read from package.json — keeps the MCP server's
+ * advertised version in sync with the real release instead of hardcoding.
+ */
 function serverVersion(): string {
   try {
     const pkg = JSON.parse(
@@ -49,13 +59,177 @@ export function periodWindowDays(p: 'today' | 'week' | 'month'): number {
   return (Date.now() - midnight) / 86_400_000;
 }
 
+export type ScopeInput =
+  | 'auto'
+  | 'all'
+  | 'wsl'
+  | 'linux'
+  | 'win'
+  | 'windows'
+  | 'codex'
+  | 'claude-code'
+  | 'claude'
+  | undefined;
+
+/**
+ * Resolve the scope filter for the current invocation. Default 'auto' detects
+ * via process.platform: linux→WSL/Linux project paths, win32→Windows drive
+ * paths. Codex/Claude-Code separation is opt-in via TOKEN_METER_SCOPE.
+ *
+ * Returns `{ scope, label }` where `scope` is passed to stats.ts queries and
+ * `label` is a one-line banner shown in the output so the user knows what
+ * subset they're looking at.
+ */
+export function resolveScope(input?: ScopeInput): { scope: ScopeFilter; label: string } {
+  const raw = (input ?? (process.env.TOKEN_METER_SCOPE as ScopeInput) ?? 'auto')
+    .toString()
+    .toLowerCase();
+  if (raw === 'all') return { scope: 'all', label: 'all sources' };
+  if (raw === 'wsl' || raw === 'linux')
+    return { scope: { platform: 'linux' }, label: 'WSL / Linux' };
+  if (raw === 'win' || raw === 'windows')
+    return { scope: { platform: 'win' }, label: 'Windows' };
+  if (raw === 'codex') return { scope: { source: 'codex' }, label: 'Codex' };
+  if (raw === 'claude-code' || raw === 'claude')
+    return { scope: { source: 'claude-code' }, label: 'Claude Code (all platforms)' };
+  // 'auto' or unknown → infer from current process.platform.
+  if (process.platform === 'linux')
+    return { scope: { platform: 'linux' }, label: 'auto: WSL / Linux' };
+  if (process.platform === 'win32')
+    return { scope: { platform: 'win' }, label: 'auto: Windows' };
+  return { scope: 'all', label: 'auto: all (unknown platform)' };
+}
+
+function padR(s: string, w: number): string {
+  return s.length >= w ? s.slice(0, w) : s + ' '.repeat(w - s.length);
+}
+function padL(s: string, w: number): string {
+  return s.length >= w ? s.slice(0, w) : ' '.repeat(w - s.length) + s;
+}
+
+/**
+ * Static discovery / trust footer reused across every tool reply. All
+ * hard-coded plain text — no LLM call, no per-request rendering work — so
+ * the cost of telling users about sibling tools and the site / GitHub URL
+ * is exactly zero tokens of inference.
+ */
+const FOOTER_LINKS = '🔗 token-meter.dev · github.com/whdrnr2583-cmd/token-meter';
+const FOOTER_TRUST =
+  'ⓘ 100% local · 0 LLM calls — this output is hard-coded, your tokens are not spent computing it.';
+const PRO_CTA = 'Pro $5/mo (30-day history · waste signals · cache-efficiency $)';
+
+/** Build a 3-line discovery + trust footer. Split intentionally so each line
+ *  fits a typical ~80-char terminal without wrapping. `siblingHint`
+ *  cross-promotes the next tool to try. */
+function discoveryFooter(siblingHint: string): string[] {
+  return [FOOTER_TRUST, siblingHint, `${FOOTER_LINKS} · ${PRO_CTA}`];
+}
+
+/**
+ * Tools whose latency is dominated by a human keystroke, not by the model or
+ * the tool runtime. Including them in "Slowest" gave a false signal (e.g.
+ * `AskUserQuestion 178s avg` always wins). They are still surfaced in the
+ * output under a separate user-blocking line so the information isn't hidden.
+ */
+const USER_BLOCKING_TOOLS = new Set(['AskUserQuestion']);
+
+/**
+ * ccusage-style table with **one row per (day, model)** so Haiku, Opus, and
+ * Sonnet on the same day are accounted independently — combining them into a
+ * single per-day row hides the cost split (e.g. 99% Opus / 1% Haiku looks the
+ * same as a 50/50 split). Day cell repeats on continuation rows so the table
+ * grep/diff cleanly.
+ */
+export function renderDailyTable(rows: DailyByModelRow[]): string[] {
+  if (rows.length === 0) return ['(no events in this window)'];
+  const colDay = 10;
+  const colModel = 18;
+  const colCalls = 6;
+  const colNum = 8;
+  const colUsd = 9;
+  const colPct = 5;
+  const totalWidth =
+    colDay + 1 + colModel + 1 + colCalls + 1 + colNum + 1 + colNum + 1 + colNum + 1 + colUsd + 1 + colPct;
+  const sepLight = '─'.repeat(totalWidth);
+  const sepHeavy = '═'.repeat(totalWidth);
+  // Subordinate divider between day groups. ` · ` half-density keeps it
+  // visually lighter than the boundary ─ lines (Tufte data-ink ratio).
+  const dayDivider = '· '.repeat(Math.floor(totalWidth / 2));
+  const headerRow = [
+    padR('Day', colDay),
+    padR('Model', colModel),
+    padL('Calls', colCalls),
+    padL('Input', colNum),
+    padL('Output', colNum),
+    padL('Cache_rd', colNum),
+    padL('USD', colUsd),
+    padL('%day', colPct),
+  ].join(' ');
+  const out: string[] = [sepLight, headerRow, sepLight];
+  let totalUsd = 0;
+  let totalIn = 0;
+  let totalOut = 0;
+  let totalCr = 0;
+  let totalCalls = 0;
+  const allModels = new Set<string>();
+  let firstDay = true;
+  for (const r of rows) {
+    if (!firstDay) out.push(dayDivider);
+    firstDay = false;
+    const dayUsd = r.usd || 1; // guard against divide-by-zero
+    for (const m of r.models) {
+      allModels.add(m.model);
+      const modelLabel = m.model.replace(/^claude-/, '').replace(/-\d{8}$/, '');
+      // Show `<1%` for non-zero but rounds-to-zero shares (e.g. Haiku at
+      // 0.28% of a $425 Opus-heavy day) so users can tell "tiny but present"
+      // apart from "literally zero".
+      const sharePct = (m.usd / dayUsd) * 100;
+      const dayShare = m.usd > 0 && sharePct < 0.5 ? '<1%' : `${Math.round(sharePct)}%`;
+      out.push(
+        [
+          padR(r.day, colDay),
+          padR(modelLabel, colModel),
+          padL(m.events.toLocaleString('en-US'), colCalls),
+          padL(fmtTok(m.input), colNum),
+          padL(fmtTok(m.output), colNum),
+          padL(fmtTok(m.cache_read), colNum),
+          padL(`$${m.usd.toFixed(2)}`, colUsd),
+          padL(dayShare, colPct),
+        ].join(' '),
+      );
+      totalUsd += m.usd;
+      totalIn += m.input;
+      totalOut += m.output;
+      totalCr += m.cache_read;
+      totalCalls += m.events;
+    }
+  }
+  // Heavy separator + blank line make the Total row visually distinct from the
+  // data rows above without ANSI codes (MCP clients vary in color support).
+  out.push('');
+  out.push(sepHeavy);
+  out.push(
+    [
+      padR('Total', colDay),
+      padR(
+        `${allModels.size} model${allModels.size === 1 ? '' : 's'} · ${rows.length} day${rows.length === 1 ? '' : 's'}`,
+        colModel,
+      ),
+      padL(totalCalls.toLocaleString('en-US'), colCalls),
+      padL(fmtTok(totalIn), colNum),
+      padL(fmtTok(totalOut), colNum),
+      padL(fmtTok(totalCr), colNum),
+      padL(`$${totalUsd.toFixed(2)}`, colUsd),
+      padL('100%', colPct),
+    ].join(' '),
+  );
+  out.push(sepHeavy);
+  return out;
+}
+
 export async function startMcpServer(): Promise<void> {
   const db = openDb();
   migrate(db);
-  // Fresh data at startup (incremental, cheap), then the first-run guard:
-  // `firstRunGuidance` is non-empty only when no Claude Code / Codex logs could
-  // be found — tools surface it so the agent tells the user what to do instead
-  // of reporting an empty period as if it were a real $0.00 month.
   let firstRunGuidance = '';
   try {
     ingestAll(db);
@@ -63,25 +237,29 @@ export async function startMcpServer(): Promise<void> {
   } catch {
     /* non-fatal */
   }
-
   const server = new McpServer(
+    { name: 'token-meter', version: serverVersion() },
     {
-      name: 'token-meter',
-      version: serverVersion(),
-    },
-    {
-      // Surfaced to the client at connect — lets the agent answer
-      // "what can Token Meter do?" without a tool call.
+      // Surfaced at the MCP connect handshake. All tool outputs are also
+      // hard-coded text — no LLM call is made by this server to compute them
+      // — so introducing the surface this way costs no inference tokens at
+      // call time. Mentioning it in the connect instructions means even a
+      // user who never calls a tool gets the discovery info.
       instructions:
         'Token Meter shows where your Claude Code + Codex tokens and money ' +
-        'go — parsed from local logs, 100% offline. Tools: `usage_summary` ' +
-        '(spend + token totals by model/project/tool for today|week|month), ' +
-        '`recent_sessions` (find a session to resume), `session_tools` ' +
-        '(debug which tools made one session slow or costly), `refresh_data` ' +
-        '(re-scan logs for the latest numbers). A CLI ' +
-        '(`npx @whdrnr2583/token-meter stats`) and a local dashboard ' +
-        '(`token-meter serve`) also exist. When the user asks what Token ' +
-        'Meter can do, summarize these four tools.',
+        'go — parsed from local JSONL logs, 100% offline. 0 LLM calls used ' +
+        'to compute any output (everything is hard-coded SQL + plain text).\n\n' +
+        'Tools:\n' +
+        '  • usage_summary  — daily table by (day × model) with $/tokens/calls, scoped to current platform (WSL/Windows/Codex auto-detect)\n' +
+        '  • recent_sessions — sessions with paste-ready `claude --resume` / `codex resume` commands\n' +
+        '  • session_tools  — per-session tool breakdown to find slow / heavy / unexpected tools\n' +
+        '  • refresh_data   — re-scan local logs for new activity\n\n' +
+        'Other surfaces (same package):\n' +
+        '  • `npx @whdrnr2583/token-meter stats [days]`     — terminal stats\n' +
+        '  • `npx @whdrnr2583/token-meter serve`            — local dashboard at http://localhost:8765\n' +
+        '  • `npx @whdrnr2583/token-meter install-mcp <client>` — wire MCP into another tool\n\n' +
+        'Links: token-meter.dev · github.com/whdrnr2583-cmd/token-meter\n' +
+        'Pro $5/mo unlocks 30-day history · per-session drill-down · cache-efficiency $ saved · waste signals.',
     },
   );
 
@@ -90,9 +268,24 @@ export async function startMcpServer(): Promise<void> {
     {
       title: 'usage summary (Token Meter)',
       description:
-        'What you spent, where it went, and what was slow — Claude Code + Codex. API-equivalent estimate, local data only. insights=true adds heuristic tips.',
+        'What you spent, where it went, and what was slow — Claude Code + Codex. API-equivalent estimate, local data only. Table by day × models (ccusage-style) + advisory narrative. scope defaults to "auto" (filter to current platform); pass "all" to see everything. insights=true adds heuristic tips.',
       inputSchema: {
         period: z.enum(['today', 'week', 'month']).default('today'),
+        scope: z
+          .enum([
+            'auto',
+            'all',
+            'wsl',
+            'linux',
+            'win',
+            'windows',
+            'codex',
+            'claude-code',
+          ])
+          .default('auto')
+          .describe(
+            'which source to include — "auto" filters by current process.platform (recommended); "all" disables the filter',
+          ),
         insights: z.boolean().default(false),
       },
       annotations: {
@@ -103,9 +296,7 @@ export async function startMcpServer(): Promise<void> {
         openWorldHint: false,
       },
     },
-    async ({ period, insights }) => {
-      // First-run / empty-DB short-circuit: do not report "$0.00 spent" as if
-      // it were a real period — the agent should tell the user how to get data.
+    async ({ period, scope, insights }) => {
       if (countTokenEvents(db) === 0) {
         const guide =
           firstRunGuidance ||
@@ -115,23 +306,28 @@ export async function startMcpServer(): Promise<void> {
           content: [
             {
               type: 'text',
-              text: `Token Meter has no usage data yet.\n${guide}`,
+              text: [
+                `Token Meter has no usage data yet.`,
+                guide,
+                '',
+                ...discoveryFooter('🔧 After first usage: refresh_data → usage_summary'),
+              ].join('\n'),
             },
           ],
         };
       }
+      const { scope: scopeFilter, label: scopeLabel } = resolveScope(scope as ScopeInput);
       const days = periodWindowDays(period);
-      const o = overview(db, days);
-      const models = byModel(db, days);
-      const projects = byProject(db, days, 1);
-      const tools = byMcp(db, days, 100);
-      const periodLabel =
-        period === 'today' ? 'today' : period === 'week' ? 'last 7d' : 'last 30d';
-
+      const o = overview(db, days, scopeFilter);
+      const oAll = overview(db, days);
+      const models = byModel(db, days, scopeFilter);
+      const projects = byProject(db, days, 1, scopeFilter);
+      const tools = byMcp(db, days, 100, scopeFilter);
+      const dailies = dailyByModel(db, days, scopeFilter);
+      const periodLabel = period === 'today' ? 'today' : period === 'week' ? 'last 7d' : 'last 30d';
       const totalTok =
         o.total_input + o.total_output + o.total_cache_read + o.total_cache_write;
-      const cacheShare =
-        totalTok > 0 ? Math.round((o.total_cache_read / totalTok) * 100) : 0;
+      const cacheShare = totalTok > 0 ? Math.round((o.total_cache_read / totalTok) * 100) : 0;
       const topModel = models[0];
       const modelStr = topModel
         ? `${topModel.model} ${Math.round((topModel.usd / (o.total_usd || 1)) * 100)}%`
@@ -139,31 +335,76 @@ export async function startMcpServer(): Promise<void> {
       const topProject = projects[0]
         ? (projects[0].project.split(/[\\/]/).filter(Boolean).pop() ?? projects[0].project)
         : '—';
-
-      // Latency sink: slowest tool among those called at least 3x.
-      const slow = [...tools]
+      const callableTools = tools.filter((t) => !USER_BLOCKING_TOOLS.has(t.tool_name));
+      const slow = [...callableTools]
         .filter((t) => t.calls >= 3)
         .sort((a, b) => b.avg_latency_ms - a.avg_latency_ms)[0];
+      // Track user-blocking tools separately so the user still sees them but
+      // they don't dominate the "Slowest" headline with human-reaction-time.
+      const userBlocking = tools
+        .filter((t) => USER_BLOCKING_TOOLS.has(t.tool_name) && t.calls >= 3)
+        .sort((a, b) => b.avg_latency_ms - a.avg_latency_ms)[0];
       const heavy = tools.slice(0, 3);
-
-      const lines = [
-        `Token Meter · ${periodLabel}`,
-        `${fmtUsd(o.total_usd)} spent (API-equiv) · ${fmtTok(totalTok)} tokens (${cacheShare}% cache reuse) · ${o.events.toLocaleString()} API calls`,
-        `Where: ${modelStr} · project ${topProject}`,
-        slow
-          ? `Slowest: ${slow.mcp_server ? slow.mcp_server + '/' : ''}${slow.tool_name} ${(slow.avg_latency_ms / 1000).toFixed(1)}s avg (${slow.calls}x)`
-          : 'Slowest: — (no tool calls in window)',
+      // Break down the "hidden by scope" amount across the other scopes so the
+      // reader knows *what* was excluded (Windows vs Codex), not just *how
+      // much*. Only computed when a scope filter is active and there's
+      // something to hide; queries are cheap and run once per call.
+      let scopeNote = '';
+      if (scopeFilter !== 'all' && oAll.events > o.events) {
+        const breakdownParts: string[] = [];
+        const seen = scopeFilter as { source?: string; platform?: string };
+        // Complementary platform — only show if current scope is platform-based.
+        if (seen.platform === 'linux') {
+          const w = overview(db, days, { platform: 'win' });
+          if (w.total_usd > 0) breakdownParts.push(`Windows ${fmtUsd(w.total_usd)}`);
+        } else if (seen.platform === 'win') {
+          const l = overview(db, days, { platform: 'linux' });
+          if (l.total_usd > 0) breakdownParts.push(`WSL/Linux ${fmtUsd(l.total_usd)}`);
+        }
+        // Codex slice (always interesting if non-empty and not the current scope).
+        if (seen.source !== 'codex') {
+          const c = overview(db, days, { source: 'codex' });
+          if (c.total_usd > 0) breakdownParts.push(`Codex ${fmtUsd(c.total_usd)}`);
+        }
+        const tailHint = breakdownParts.length
+          ? `hidden: ${breakdownParts.join(' · ')}`
+          : `${fmtUsd(oAll.total_usd - o.total_usd)} hidden`;
+        scopeNote = ` · ${tailHint} (use scope="all" to include)`;
+      }
+      const lines: string[] = [
+        `Token Meter · ${periodLabel} · scope: ${scopeLabel}`,
       ];
-      if (heavy.length > 0) {
+      // scope hint goes on its own line — when it gets long (multi-source
+      // breakdown), folding it under the title keeps the header scannable.
+      if (scopeNote) lines.push(scopeNote.replace(/^\s·\s/, ''));
+      lines.push('');
+      lines.push(...renderDailyTable(dailies));
+      lines.push('');
+      lines.push(
+        `Summary: ${fmtUsd(o.total_usd)} · ${fmtTok(totalTok)} tokens (${cacheShare}% cache reuse) · ${o.events.toLocaleString()} API calls`,
+      );
+      lines.push('');
+      lines.push('— Spotlight (advisory) —');
+      lines.push(`Where    : ${modelStr} · project ${topProject}`);
+      lines.push(
+        slow
+          ? `Slowest  : ${slow.mcp_server ? slow.mcp_server + '/' : ''}${slow.tool_name} ${(slow.avg_latency_ms / 1000).toFixed(1)}s avg (${slow.calls}x)`
+          : 'Slowest  : — (no tool calls in window)',
+      );
+      if (userBlocking) {
         lines.push(
-          `Heaviest: ${heavy.map((t) => `${t.tool_name} ${fmtTok(t.total_response_tokens)}`).join(' · ')} (response tokens, est.)`,
+          `User wait: ${userBlocking.tool_name} ${(userBlocking.avg_latency_ms / 1000).toFixed(1)}s avg (${userBlocking.calls}x) — waiting on you, not the tool`,
         );
       }
-
+      if (heavy.length > 0) {
+        lines.push(
+          `Heaviest : ${heavy.map((t) => `${t.tool_name} ${fmtTok(t.total_response_tokens)}`).join(' · ')} (response tokens, est.)`,
+        );
+      }
       if (insights) {
         const tips: string[] = [];
         if (period === 'today') {
-          const wk = overview(db, 7);
+          const wk = overview(db, 7, scopeFilter);
           const dailyAvg = wk.total_usd / 7;
           if (dailyAvg > 0) {
             const r = o.total_usd / dailyAvg;
@@ -183,18 +424,17 @@ export async function startMcpServer(): Promise<void> {
           );
         }
         if (tips.length > 0) {
+          lines.push('');
           lines.push('Insights:');
           for (const t of tips) lines.push(`• ${t}`);
         }
       }
-
+      lines.push('');
       lines.push(
-        'ⓘ API-equivalent estimate, not your vendor invoice · 100% local · this summary computed with 0 LLM calls',
+        ...discoveryFooter(
+          '🔧 Other tools: recent_sessions · session_tools <id> · refresh_data · serve (local dashboard)',
+        ),
       );
-      lines.push(
-        'Pro: 30-day history · per-session drill-down · cache-efficiency $ saved · waste signals — token-meter.dev',
-      );
-
       return { content: [{ type: 'text', text: lines.join('\n') }] };
     },
   );
@@ -220,7 +460,6 @@ export async function startMcpServer(): Promise<void> {
     async ({ within_hours, limit }) => {
       const rows = recentSessions(db, within_hours, limit);
       if (rows.length === 0) {
-        // Distinguish a first run (no data at all) from a genuine quiet window.
         if (countTokenEvents(db) === 0) {
           const guide =
             firstRunGuidance ||
@@ -238,7 +477,7 @@ export async function startMcpServer(): Promise<void> {
           ],
         };
       }
-      const lines = [
+      const lines: string[] = [
         `Recent sessions (last ${within_hours}h) — newest first:`,
         ...rows.map((r) => {
           const tool = r.source === 'claude-code' ? 'claude --resume' : 'codex resume';
@@ -249,6 +488,10 @@ export async function startMcpServer(): Promise<void> {
             `  resume: cd "${r.project}" && ${tool} ${r.session_id}`,
           ].join('\n');
         }),
+        '',
+        ...discoveryFooter(
+          '🔧 Next: session_tools <id> to debug a slow session · usage_summary for time-window view',
+        ),
       ];
       return { content: [{ type: 'text', text: lines.join('\n') }] };
     },
@@ -275,18 +518,31 @@ export async function startMcpServer(): Promise<void> {
     async ({ session_id, limit }) => {
       const summary = sessionToolSummary(db, session_id);
       if (summary.length === 0) {
-        return { content: [{ type: 'text', text: `No tool calls recorded for session ${session_id}.` }] };
+        return {
+          content: [{ type: 'text', text: `No tool calls recorded for session ${session_id}.` }],
+        };
       }
       const shown = summary.slice(0, limit);
-      const lines = [
-        `Tools used in session ${session_id} (by response tokens):`,
+      // Total response tokens across all tools in this session — used to
+      // surface each tool's share, since "which tool dominated" is the usual
+      // debug question. Computed from the full summary, not just the shown
+      // slice, so the percentages add up correctly when limit truncates.
+      const totalResp = summary.reduce((acc, s) => acc + s.total_response_tokens, 0);
+      const pct = (n: number): string =>
+        totalResp > 0 ? `${((n / totalResp) * 100).toFixed(1)}%` : '—';
+      const lines: string[] = [
+        `Tools used in session ${session_id} (by response tokens; pct = share of session resp tokens):`,
         ...shown.map((s) => {
           const mcp = s.mcp_server ? `mcp:${s.mcp_server}` : 'built-in';
-          return `  ${s.tool_name} (${mcp}) calls=${s.calls} resp=${fmtTok(s.total_response_tokens)} avg=${Math.round(s.avg_latency_ms)}ms`;
+          return `  ${s.tool_name} (${mcp}) calls=${s.calls} resp=${fmtTok(s.total_response_tokens)} (${pct(s.total_response_tokens)}) avg=${Math.round(s.avg_latency_ms)}ms`;
         }),
         ...(summary.length > shown.length
           ? [`  …+${summary.length - shown.length} more (raise limit to see all)`]
           : []),
+        '',
+        ...discoveryFooter(
+          '🔧 Next: usage_summary for time-window view · recent_sessions to find other sessions',
+        ),
       ];
       return { content: [{ type: 'text', text: lines.join('\n') }] };
     },
@@ -299,9 +555,6 @@ export async function startMcpServer(): Promise<void> {
       description:
         'Re-scan local Claude Code / Codex JSONL for new activity. Run before other tools for up-to-the-minute numbers.',
       inputSchema: {},
-      // Not read-only: writes newly-discovered token/tool rows into the local
-      // SQLite DB. Insert-only (INSERT OR IGNORE, D-027 dedup) so it is
-      // non-destructive and idempotent on re-run. Local files only — no vendor APIs.
       annotations: {
         title: 'refresh data (Token Meter)',
         readOnlyHint: false,
@@ -312,22 +565,20 @@ export async function startMcpServer(): Promise<void> {
     },
     async () => {
       const r = ingestAll(db);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Refreshed. Claude Code: +${r.claude_code.token_rows_inserted} token rows; Codex: +${r.codex.token_rows_inserted} token rows.`,
-          },
-        ],
-      };
+      const lines = [
+        `Refreshed. Claude Code: +${r.claude_code.token_rows_inserted} token rows; Codex: +${r.codex.token_rows_inserted} token rows.`,
+        '',
+        ...discoveryFooter(
+          '🔧 Next: usage_summary to see the fresh data · recent_sessions for a session to resume',
+        ),
+      ];
+      return { content: [{ type: 'text', text: lines.join('\n') }] };
     },
   );
 
-  // Prompts — slash-command entry points that pair 1:1 with the tools above.
-  // Clients (Claude Code / Cursor / Claude Desktop) surface these as
+  // Slash-command entry points that pair 1:1 with the tools above. Clients
+  // (Claude Code / Cursor / Claude Desktop) surface these as
   // `/mcp__token-meter__<name>` so users can invoke without typing natural language.
-  // Each prompt returns a user-role message that instructs the agent to call the matching tool.
-
   server.registerPrompt(
     'usage_summary',
     {
@@ -357,7 +608,8 @@ export async function startMcpServer(): Promise<void> {
     'recent_sessions',
     {
       title: 'recent sessions (Token Meter)',
-      description: 'List recent Claude Code / Codex sessions with ready-to-paste resume commands.',
+      description:
+        'List recent Claude Code / Codex sessions with ready-to-paste resume commands.',
       argsSchema: {
         within_hours: z.string().optional().describe('hours to look back, 1-720 (default: 24)'),
       },

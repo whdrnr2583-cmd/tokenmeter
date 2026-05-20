@@ -22,6 +22,27 @@ export interface DailyRow {
   events: number;
 }
 
+export interface DailyByModelEntry {
+  model: string;
+  input: number;
+  output: number;
+  cache_read: number;
+  cache_write: number;
+  usd: number;
+  events: number;
+}
+
+export interface DailyByModelRow {
+  day: string;
+  models: DailyByModelEntry[];
+  input: number;
+  output: number;
+  cache_read: number;
+  cache_write: number;
+  usd: number;
+  events: number;
+}
+
 export interface ModelRow {
   model: string;
   input: number;
@@ -48,19 +69,86 @@ export interface McpRow {
 }
 
 export interface HourlyRow {
-  hour: number; // 0..23 local
+  hour: number;
   events: number;
   usd: number;
   output_tokens: number;
+}
+
+export interface CacheStatsRow {
+  total_input: number;
+  total_cache_read: number;
+  total_cache_write: number;
+  hit_ratio: number;
+  savings_usd: number;
+  write_cost_usd: number;
+  net_usd: number;
+}
+
+export interface ToolOutlierRow {
+  tool_name: string;
+  mcp_server: string | null;
+  calls: number;
+  avg_tokens: number;
+  max_tokens: number;
+}
+
+export interface CacheWasteDayRow {
+  day: string;
+  cache_read: number;
+  cache_write: number;
+}
+
+export interface WasteSignals {
+  tool_outliers: ToolOutlierRow[];
+  cache_waste_days: CacheWasteDayRow[];
+}
+
+/**
+ * Narrow which token_events / tool_events rows a query considers. `source`
+ * picks Claude Code vs Codex; `platform` discriminates WSL/Linux project
+ * paths ('/…') from Windows drive paths ('C:\…'). Both fields are optional —
+ * leaving them unset (or passing `'all'`) keeps the original behavior so the
+ * filter is backward-compatible.
+ */
+export type ScopeFilter = 'all' | { source?: 'claude-code' | 'codex'; platform?: 'linux' | 'win' };
+
+interface CompiledScope {
+  clause: string;
+  params: unknown[];
+}
+
+export function scopeClause(scope?: ScopeFilter): CompiledScope {
+  if (!scope || scope === 'all') return { clause: '', params: [] };
+  const conds: string[] = [];
+  const params: unknown[] = [];
+  if (scope.source) {
+    conds.push('source = ?');
+    params.push(scope.source);
+  }
+  if (scope.platform === 'linux') {
+    // POSIX/WSL paths start at '/'.
+    conds.push("project LIKE '/%'");
+  } else if (scope.platform === 'win') {
+    // Windows drive paths like 'C:\…' — GLOB '[A-Za-z]:*' matches that without
+    // pulling in the noisy LIKE escaping rules.
+    conds.push("project GLOB '[A-Za-z]:*'");
+  }
+  return { clause: conds.length ? ' AND ' + conds.join(' AND ') : '', params };
 }
 
 function dayWindow(days: number): number {
   return Date.now() - days * 86_400_000;
 }
 
-export function overview(db: Database.Database, days: number): OverviewRow {
+export function overview(
+  db: Database.Database,
+  days: number,
+  scope?: ScopeFilter,
+): OverviewRow {
   const since = dayWindow(days);
-  const row = db
+  const sc = scopeClause(scope);
+  return db
     .prepare(
       `SELECT
         COALESCE(SUM(input_tokens), 0)        AS total_input,
@@ -72,14 +160,14 @@ export function overview(db: Database.Database, days: number): OverviewRow {
         MIN(ts)                               AS first_ts,
         MAX(ts)                               AS last_ts
        FROM token_events
-       WHERE ts >= ?`,
+       WHERE ts >= ?${sc.clause}`,
     )
-    .get(since) as OverviewRow;
-  return row;
+    .get(since, ...sc.params) as OverviewRow;
 }
 
-export function daily(db: Database.Database, days: number): DailyRow[] {
+export function daily(db: Database.Database, days: number, scope?: ScopeFilter): DailyRow[] {
   const since = dayWindow(days);
+  const sc = scopeClause(scope);
   return db
     .prepare(
       `SELECT
@@ -91,15 +179,93 @@ export function daily(db: Database.Database, days: number): DailyRow[] {
         COALESCE(SUM(usd_estimate), 0)        AS usd,
         COUNT(*)                              AS events
        FROM token_events
-       WHERE ts >= ?
+       WHERE ts >= ?${sc.clause}
        GROUP BY day
        ORDER BY day ASC`,
     )
-    .all(since) as DailyRow[];
+    .all(since, ...sc.params) as DailyRow[];
 }
 
-export function byModel(db: Database.Database, days: number): ModelRow[] {
+/**
+ * Daily breakdown with per-day model labels. The CLI/MCP table view renders
+ * one row per `day`, with the `models` array listed in the Models column
+ * (ccusage-style). Sums on each row are across all models active that day.
+ */
+export function dailyByModel(
+  db: Database.Database,
+  days: number,
+  scope?: ScopeFilter,
+): DailyByModelRow[] {
   const since = dayWindow(days);
+  const sc = scopeClause(scope);
+  const rows = db
+    .prepare(
+      `SELECT
+        strftime('%Y-%m-%d', ts/1000, 'unixepoch', 'localtime') AS day,
+        model,
+        COALESCE(SUM(input_tokens), 0)        AS input,
+        COALESCE(SUM(output_tokens), 0)       AS output,
+        COALESCE(SUM(cache_read_tokens), 0)   AS cache_read,
+        COALESCE(SUM(cache_write_tokens), 0)  AS cache_write,
+        COALESCE(SUM(usd_estimate), 0)        AS usd,
+        COUNT(*)                              AS events
+       FROM token_events
+       WHERE ts >= ?${sc.clause}
+       GROUP BY day, model
+       ORDER BY day ASC, usd DESC`,
+    )
+    .all(since, ...sc.params) as Array<{
+      day: string;
+      model: string;
+      input: number;
+      output: number;
+      cache_read: number;
+      cache_write: number;
+      usd: number;
+      events: number;
+    }>;
+  const byDay = new Map<string, DailyByModelRow>();
+  for (const r of rows) {
+    let d = byDay.get(r.day);
+    if (!d) {
+      d = {
+        day: r.day,
+        models: [],
+        input: 0,
+        output: 0,
+        cache_read: 0,
+        cache_write: 0,
+        usd: 0,
+        events: 0,
+      };
+      byDay.set(r.day, d);
+    }
+    d.models.push({
+      model: r.model,
+      input: r.input,
+      output: r.output,
+      cache_read: r.cache_read,
+      cache_write: r.cache_write,
+      usd: r.usd,
+      events: r.events,
+    });
+    d.input += r.input;
+    d.output += r.output;
+    d.cache_read += r.cache_read;
+    d.cache_write += r.cache_write;
+    d.usd += r.usd;
+    d.events += r.events;
+  }
+  return Array.from(byDay.values());
+}
+
+export function byModel(
+  db: Database.Database,
+  days: number,
+  scope?: ScopeFilter,
+): ModelRow[] {
+  const since = dayWindow(days);
+  const sc = scopeClause(scope);
   return db
     .prepare(
       `SELECT
@@ -111,15 +277,21 @@ export function byModel(db: Database.Database, days: number): ModelRow[] {
         COALESCE(SUM(usd_estimate), 0)        AS usd,
         COUNT(*)                              AS events
        FROM token_events
-       WHERE ts >= ?
+       WHERE ts >= ?${sc.clause}
        GROUP BY model
        ORDER BY usd DESC`,
     )
-    .all(since) as ModelRow[];
+    .all(since, ...sc.params) as ModelRow[];
 }
 
-export function byProject(db: Database.Database, days: number, limit = 20): ProjectRow[] {
+export function byProject(
+  db: Database.Database,
+  days: number,
+  limit = 20,
+  scope?: ScopeFilter,
+): ProjectRow[] {
   const since = dayWindow(days);
+  const sc = scopeClause(scope);
   return db
     .prepare(
       `SELECT
@@ -128,16 +300,22 @@ export function byProject(db: Database.Database, days: number, limit = 20): Proj
         COUNT(*)                                                       AS events,
         COALESCE(SUM(input_tokens + output_tokens + cache_read_tokens + cache_write_tokens), 0) AS total_tokens
        FROM token_events
-       WHERE ts >= ?
+       WHERE ts >= ?${sc.clause}
        GROUP BY project
        ORDER BY usd DESC
        LIMIT ?`,
     )
-    .all(since, limit) as ProjectRow[];
+    .all(since, ...sc.params, limit) as ProjectRow[];
 }
 
-export function byMcp(db: Database.Database, days: number, limit = 30): McpRow[] {
+export function byMcp(
+  db: Database.Database,
+  days: number,
+  limit = 30,
+  scope?: ScopeFilter,
+): McpRow[] {
   const since = dayWindow(days);
+  const sc = scopeClause(scope);
   return db
     .prepare(
       `SELECT
@@ -147,16 +325,21 @@ export function byMcp(db: Database.Database, days: number, limit = 30): McpRow[]
         COALESCE(SUM(response_tokens_est), 0)   AS total_response_tokens,
         COALESCE(AVG(latency_ms), 0)            AS avg_latency_ms
        FROM tool_events
-       WHERE ts >= ?
+       WHERE ts >= ?${sc.clause}
        GROUP BY mcp_server, tool_name
        ORDER BY total_response_tokens DESC
        LIMIT ?`,
     )
-    .all(since, limit) as McpRow[];
+    .all(since, ...sc.params, limit) as McpRow[];
 }
 
-export function byHour(db: Database.Database, days: number): HourlyRow[] {
+export function byHour(
+  db: Database.Database,
+  days: number,
+  scope?: ScopeFilter,
+): HourlyRow[] {
   const since = dayWindow(days);
+  const sc = scopeClause(scope);
   return db
     .prepare(
       `SELECT
@@ -165,37 +348,28 @@ export function byHour(db: Database.Database, days: number): HourlyRow[] {
         COALESCE(SUM(usd_estimate), 0)    AS usd,
         COALESCE(SUM(output_tokens), 0)   AS output_tokens
        FROM token_events
-       WHERE ts >= ?
+       WHERE ts >= ?${sc.clause}
        GROUP BY hour
        ORDER BY hour ASC`,
     )
-    .all(since) as HourlyRow[];
+    .all(since, ...sc.params) as HourlyRow[];
 }
 
 function round6(n: number): number {
   return Math.round(n * 1_000_000) / 1_000_000;
 }
 
-export interface CacheStatsRow {
-  total_input: number;
-  total_cache_read: number;
-  total_cache_write: number;
-  /** cache_read / (input + cache_read), 0..1. 0 when there are no read-side tokens. */
-  hit_ratio: number;
-  /** Gross saving from cache reads: each cache-read token billed at cacheRead instead of input rate. */
-  savings_usd: number;
-  /** USD spent creating caches (cache-write tokens × cacheWrite rate). */
-  write_cost_usd: number;
-  /** savings_usd − write_cost_usd. Negative ⇒ writing more cache than the reads recover. */
-  net_usd: number;
-}
-
 /**
  * Cache efficiency over the window. LLM-free — pure aggregation + the pricing
  * table. Grouped by model so per-model rates apply.
  */
-export function cacheStats(db: Database.Database, days: number): CacheStatsRow {
+export function cacheStats(
+  db: Database.Database,
+  days: number,
+  scope?: ScopeFilter,
+): CacheStatsRow {
   const since = dayWindow(days);
+  const sc = scopeClause(scope);
   const rows = db
     .prepare(
       `SELECT
@@ -204,16 +378,15 @@ export function cacheStats(db: Database.Database, days: number): CacheStatsRow {
         COALESCE(SUM(cache_read_tokens), 0)   AS cache_read,
         COALESCE(SUM(cache_write_tokens), 0)  AS cache_write
        FROM token_events
-       WHERE ts >= ?
+       WHERE ts >= ?${sc.clause}
        GROUP BY model`,
     )
-    .all(since) as Array<{
-    model: string;
-    input: number;
-    cache_read: number;
-    cache_write: number;
-  }>;
-
+    .all(since, ...sc.params) as Array<{
+      model: string;
+      input: number;
+      cache_read: number;
+      cache_write: number;
+    }>;
   let total_input = 0;
   let total_cache_read = 0;
   let total_cache_write = 0;
@@ -239,25 +412,6 @@ export function cacheStats(db: Database.Database, days: number): CacheStatsRow {
   };
 }
 
-export interface ToolOutlier {
-  tool_name: string;
-  mcp_server: string | null;
-  calls: number;
-  avg_tokens: number;
-  max_tokens: number;
-}
-
-export interface CacheWasteDay {
-  day: string;
-  cache_read: number;
-  cache_write: number;
-}
-
-export interface WasteReport {
-  tool_outliers: ToolOutlier[];
-  cache_waste_days: CacheWasteDay[];
-}
-
 /**
  * Heuristic waste signals — things worth a look, not verdicts. LLM-free.
  *  - tool_outliers: tools (≥3 calls) whose largest response dwarfs their
@@ -265,9 +419,13 @@ export interface WasteReport {
  *  - cache_waste_days: days that wrote more cache than they read back —
  *    cache that did not pay off.
  */
-export function wasteSignals(db: Database.Database, days: number): WasteReport {
+export function wasteSignals(
+  db: Database.Database,
+  days: number,
+  scope?: ScopeFilter,
+): WasteSignals {
   const since = dayWindow(days);
-
+  const sc = scopeClause(scope);
   const toolRows = db
     .prepare(
       `SELECT
@@ -277,17 +435,15 @@ export function wasteSignals(db: Database.Database, days: number): WasteReport {
         CAST(COALESCE(AVG(response_tokens_est), 0) AS INTEGER)  AS avg_tokens,
         COALESCE(MAX(response_tokens_est), 0)                   AS max_tokens
        FROM tool_events
-       WHERE ts >= ?
+       WHERE ts >= ?${sc.clause}
        GROUP BY mcp_server, tool_name
        HAVING COUNT(*) >= 3`,
     )
-    .all(since) as ToolOutlier[];
-
+    .all(since, ...sc.params) as ToolOutlierRow[];
   const tool_outliers = toolRows
     .filter((r) => r.max_tokens > 10_000 && r.max_tokens > 5 * r.avg_tokens)
     .sort((a, b) => b.max_tokens - a.max_tokens)
     .slice(0, 8);
-
   const cache_waste_days = db
     .prepare(
       `SELECT
@@ -295,13 +451,12 @@ export function wasteSignals(db: Database.Database, days: number): WasteReport {
         COALESCE(SUM(cache_read_tokens), 0)   AS cache_read,
         COALESCE(SUM(cache_write_tokens), 0)  AS cache_write
        FROM token_events
-       WHERE ts >= ?
+       WHERE ts >= ?${sc.clause}
        GROUP BY day
        HAVING SUM(cache_write_tokens) > SUM(cache_read_tokens)
           AND SUM(cache_write_tokens) > 0
        ORDER BY day ASC`,
     )
-    .all(since) as CacheWasteDay[];
-
+    .all(since, ...sc.params) as CacheWasteDayRow[];
   return { tool_outliers, cache_waste_days };
 }

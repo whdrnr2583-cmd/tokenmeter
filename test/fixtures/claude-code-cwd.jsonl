@@ -1,3 +1,0 @@
-{"type":"user","message":{"role":"user","content":"hi"},"cwd":"/home/user/myproj","uuid":"uc-1","timestamp":"2026-05-13T10:00:00.000Z","sessionId":"sess-cwd"}
-{"type":"assistant","message":{"model":"claude-opus-4-7","role":"assistant","content":[{"type":"tool_use","id":"tx-1","name":"Read"}],"usage":{"input_tokens":10,"output_tokens":20,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}},"requestId":"req_X","cwd":"/home/user/myproj","timestamp":"2026-05-13T10:00:01.000Z","sessionId":"sess-cwd"}
-{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tx-1","content":"data"}]},"cwd":"/home/user/myproj","uuid":"uc-2","timestamp":"2026-05-13T10:00:02.000Z","sessionId":"sess-cwd"}

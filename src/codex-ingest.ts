@@ -4,9 +4,6 @@ import { join } from 'node:path';
 import type Database from 'better-sqlite3';
 import { getIngestState, insertTokenEvents, recordIngest } from './db.js';
 import { parseCodexSession } from './codex-parser.js';
-// scanWindowsUserDirs lives in ingest.ts. This forms a benign import
-// cycle — it is a hoisted function, called only at runtime.
-import { scanWindowsUserDirs } from './ingest.js';
 
 export interface CodexIngestSummary {
   files_scanned: number;
@@ -17,19 +14,6 @@ export interface CodexIngestSummary {
 
 export function codexSessionsDir(): string {
   return join(homedir(), '.codex', 'sessions');
-}
-
-/**
- * All Codex session directories to scan. On WSL this includes any
- * Windows-side /mnt/c/Users/<profile>/.codex/sessions in addition to the
- * WSL home-dir path, so a Codex install on the Windows host is picked up.
- */
-export function codexSessionsDirs(): string[] {
-  const dirs = [codexSessionsDir()];
-  for (const d of scanWindowsUserDirs('.codex/sessions')) {
-    if (!dirs.includes(d)) dirs.push(d);
-  }
-  return dirs;
 }
 
 function walkJsonl(dir: string, out: string[]): void {
@@ -58,10 +42,14 @@ export function ingestCodex(
     duration_ms: 0,
   };
 
-  const files: string[] = [];
-  for (const base of codexSessionsDirs()) {
-    if (existsSync(base)) walkJsonl(base, files);
+  const base = codexSessionsDir();
+  if (!existsSync(base)) {
+    summary.duration_ms = Date.now() - start;
+    return summary;
   }
+
+  const files: string[] = [];
+  walkJsonl(base, files);
 
   for (const filePath of files) {
     summary.files_scanned++;

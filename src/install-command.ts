@@ -48,21 +48,36 @@ export function claudeCodeCommandPath(): string {
  */
 export function commandTemplate(): string {
   return `---
-description: Token Meter — 오늘 토큰 사용량 한눈에
-allowed-tools: mcp__token-meter__usage_summary
+description: Token Meter — 오늘 사용량 + MCP·도구별 분해 + 다른 명령 / Pro 안내
+allowed-tools: mcp__token-meter__usage_summary, mcp__token-meter__recent_sessions, mcp__token-meter__session_tools, mcp__token-meter__refresh_data
 ---
 
-token-meter MCP의 \`usage_summary\` 도구를 \`period="today"\`로 호출하고, 응답 텍스트를
-그대로 보여주세요 (오늘 비용·이벤트·모델별·프로젝트·MCP/도구별이 모두 포함됩니다).
+# Token Meter — 한눈에 보기
 
-그 아래에 다음 한 줄을 그대로 덧붙이세요:
+다음 단계를 정확히 따르세요. 사용자에게 보여줄 출력 외 코멘트는 생략.
+
+1. token-meter MCP 서버의 \`usage_summary\` 도구를 \`period="today"\`로 호출합니다.
+2. 그 응답 텍스트를 그대로 보여주세요 (오늘 비용 + 이벤트 + 모델별 + 프로젝트 + MCP·도구별 top이 이미 포함됩니다).
+3. 응답 아래에 다음 안내 블록을 한 글자도 바꾸지 말고 그대로 출력하세요:
 
 \`\`\`
-Token Meter — 무료·오픈소스. 30일 히스토리·캐시 효율·낭비 신호는 Pro(월 5달러): https://token-meter.dev
+──────────────────────────────────
+다른 슬래시·명령
+  /mcp__token-meter__recent_sessions   최근 닫은 터미널 세션 + claude --resume 명령
+  /mcp__token-meter__session_tools     특정 session_id의 도구·MCP 사용 분해
+  /mcp__token-meter__refresh_data      JSONL 재스캔 후 최신 수치
+
+  npx @whdrnr2583/token-meter stats 7  CLI 7일 요약
+  npx @whdrnr2583/token-meter serve    대시보드 http://localhost:8765
+
+Pro \$5/월 — 세션 드릴다운 · 비용 예측·페이스 · CSV/JSON export · 커스텀 가격 매트릭스
+  → https://token-meter.dev
+──────────────────────────────────
 \`\`\`
 
-도구 호출이 실패하면 (서버 미등록·데이터 없음 등) 한 줄로 원인 +
-\`npx -y @whdrnr2583/token-meter install-mcp claude-code\` 안내만 하고, Pro 줄은 생략하세요.
+도구 호출이 실패하면 (서버 미등록, 데이터 없음, 오류 메시지 등):
+- 한 줄로 원인 + \`npx -y @whdrnr2583/token-meter install-mcp claude-code\` 안내.
+- Pro 안내 블록은 출력하지 마세요.
 `;
 }
 
