@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/whdrnr2583-cmd/token-meter/main/assets/logo-transparent.png" alt="Token Meter" width="120" height="120" />
+</p>
+
 # Token Meter
 
 > One local dashboard for your **Claude Code** and **Codex** token usage.

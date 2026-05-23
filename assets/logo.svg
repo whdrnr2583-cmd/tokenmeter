@@ -1,0 +1,9 @@
+  <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+    <rect width="256" height="256" rx="48" fill="#0F172A"/>
+    <path d="M 64 160 A 64 64 0 0 1 192 160" fill="none" stroke="#1E293B" stroke-width="16" stroke-linecap="round"/>
+    <path d="M 64 160 A 64 64 0 0 1 128 96" fill="none" stroke="#34D399" stroke-width="16" stroke-linecap="round"/>
+    <line x1="128" y1="160" x2="158" y2="116" stroke="#E2E8F0" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="128" cy="160" r="9" fill="#E2E8F0"/>
+    <text x="128" y="206" font-family="Arial, sans-serif" font-size="32" font-weight="700" fill="#E2E8F0"
+  text-anchor="middle" letter-spacing="2">TM</text>
+  </svg>

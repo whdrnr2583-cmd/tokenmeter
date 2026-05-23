@@ -7,12 +7,23 @@
     <meta property="og:title" content="Token Meter" />
     <meta property="og:description" content="One local dashboard for your Claude Code and Codex usage." />
     <meta property="og:url" content="https://token-meter.dev" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://token-meter.dev/logo-transparent.png" />
+    <meta property="og:image:width" content="256" />
+    <meta property="og:image:height" content="256" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Token Meter" />
+    <meta name="twitter:description" content="One local dashboard for your Claude Code and Codex usage." />
+    <meta name="twitter:image" content="https://token-meter.dev/logo-transparent.png" />
     <title>Token Meter — Your meter for Claude Code and Codex</title>
+    <link rel="icon" href="/logo.svg" type="image/svg+xml" />
+    <link rel="icon" href="/logo-transparent.png" type="image/png" sizes="256x256" />
+    <link rel="apple-touch-icon" href="/logo-transparent.png" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <header>
-      <a href="/" class="brand">Token Meter</a>
+      <a href="/" class="brand"><img src="/logo.svg" alt="" width="22" height="22" class="brand-logo" />Token Meter</a>
       <nav>
         <a href="#features">Features</a>
         <a href="#connect">Connect (MCP)</a>
@@ -30,14 +41,34 @@
         Your JSONL never leaves your machine.
       </p>
       <div class="cta">
-        <!-- Tally beta waitlist embed. Form: https://tally.so/r/2E16vD -->
-        <iframe data-tally-src="https://tally.so/embed/2E16vD?alignLeft=1&hideTitle=1&transparentBackground=1&dynamicHeight=1"
-          loading="lazy" width="100%" height="220" frameborder="0" marginheight="0" marginwidth="0"
-          title="Token Meter waitlist"></iframe>
-        <p class="hint">Free + MIT licensed core, available now. Pro ($5/mo) is live — Pro+ ($24) ships later.</p>
+        <form id="waitlist" class="waitlist" novalidate>
+          <input type="email" name="email" placeholder="you@dev.com" autocomplete="email" aria-label="Your email" required />
+          <button type="submit">Get release updates</button>
+        </form>
+        <p class="hint" id="waitlist-hint">Free + MIT core, available now. Pro ($5/mo) is live — drop your email for Pro+ &amp; new releases.</p>
       </div>
       <pre class="code">npm install -g @whdrnr2583/token-meter
 token-meter ingest &amp;&amp; token-meter serve</pre>
+    </section>
+
+    <section class="demo">
+      <h2>See it in one command</h2>
+      <p class="demo-sub">Ask your AI assistant <em>"this week's spend"</em> over MCP, or run the CLI. Same data, zero cloud.</p>
+      <pre class="terminal"><span class="term-cmd">$ token-meter stats 7</span>
+
+ Day   Model              Calls      USD   %day
+ ───────────────────────────────────────────────
+ Mon   claude-opus-4-7      372   $41.20    99%
+       claude-haiku-4-5      45    $0.34     1%
+ Tue   claude-opus-4-7      394   $44.10   100%
+ Wed   claude-opus-4-7      521   $39.80    99%
+       claude-sonnet-4-6    114    $0.41     1%
+ ───────────────────────────────────────────────
+ Total 7 days             4,257  $312.40   100%
+
+ <span class="term-dim">Heaviest : Read 1.1M · Bash 731k · WebSearch 451k  (resp tokens)</span>
+ <span class="term-dim">Slowest  : Agent 123s avg (237x) — your latency sink</span>
+ <span class="term-dim">Cache    : 94% reuse — on a flat-fee plan, not billed per token</span></pre>
     </section>
 
     <section id="features" class="features">
@@ -57,7 +88,7 @@ token-meter ingest &amp;&amp; token-meter serve</pre>
         </article>
         <article>
           <h3>🏠 Local-first, private</h3>
-          <p>SQLite in <code>~/.tokenpulse/</code> (renamed to <code>~/.tokenmeter/</code> in a future release with an automatic migration). No upload, no cloud account required for the free tier.</p>
+          <p>SQLite on your own machine. No upload, no cloud account required for the free tier.</p>
         </article>
         <article>
           <h3>⚡ MIT licensed core</h3>

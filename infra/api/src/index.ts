@@ -181,15 +181,66 @@ function planLabel(plan: string): string {
   return 'Pro';
 }
 
+// Replies to license emails must reach a real inbox — From is a noreply@
+// address, so set reply_to explicitly (matches the site footer contact).
+const REPLY_TO_EMAIL = 'hello@token-meter.dev';
+
+function licenseEmailText(key: string, plan: string, siteUrl: string): string {
+  const label = planLabel(plan);
+  const site = siteUrl.replace(/^https?:\/\//, '');
+  const history = plan === 'pro_plus' ? 'Unlimited history' : '30-day history';
+  const exportWin =
+    plan === 'pro_plus' ? ' (unlimited window)' : ' (30-day window)';
+  return [
+    `Welcome to Token Meter ${label}.`,
+    '',
+    'Your license key:',
+    key,
+    '',
+    'FAST PATH',
+    'Forward this email to your AI assistant (Claude Code, Cursor, ChatGPT) and ask:',
+    '"Set up Token Meter for me using this license key."',
+    '',
+    'MANUAL SETUP',
+    '# install + activate + persist gating env',
+    `npx -y @whdrnr2583/token-meter setup ${key}`,
+    '',
+    '# optional - register as an MCP server (Claude Code)',
+    'claude mcp add token-meter -- npx -y @whdrnr2583/token-meter mcp',
+    '',
+    '# verify (no "Free tier" warning = success)',
+    'TOKEN_METER_GATING=1 token-meter stats 30',
+    '',
+    'Windows / PowerShell: setup activates the license but skips the rc-append',
+    'step - run "setx TOKEN_METER_GATING 1" and restart the terminal.',
+    '',
+    `WHAT YOU UNLOCKED WITH ${label}`,
+    `- ${history} on every dashboard view`,
+    '- Smart alerts - desktop, email, webhook, weekly digest',
+    '- Session and per-message drill-down',
+    `- CSV / JSON export${exportWin}`,
+    '- Custom pricing matrix for contracted API rates',
+    '',
+    "Questions, bugs, or a setup that didn't go through? Just reply to this",
+    'email - it reaches us directly.',
+    '',
+    `Token Meter - ${site}`,
+    siteUrl,
+  ].join('\n');
+}
+
 function licenseEmailHtml(key: string, plan: string, siteUrl: string): string {
   const label = planLabel(plan);
   const site = siteUrl.replace(/^https?:\/\//, '');
   return `<!doctype html>
 <html><body style="font-family:-apple-system,Segoe UI,sans-serif;max-width:600px;margin:24px auto;color:#222;line-height:1.55">
+<span style="display:none!important;max-height:0;overflow:hidden;opacity:0;color:transparent">Your Token Meter ${label} license key + one-shot setup instructions are inside.</span>
 
-<h2 style="margin:0 0 12px">Welcome to Token Meter ${label}.</h2>
+<img src="${siteUrl}/logo-transparent.png" alt="Token Meter" width="56" height="56" style="display:block;border:0;outline:none;margin:0 0 14px" />
+<div style="height:3px;width:48px;background:#10b981;border-radius:3px;margin:0 0 18px"></div>
+<h2 style="margin:0 0 12px">Welcome to Token Meter ${label} 🎉</h2>
 <p>Your license key:</p>
-<pre style="background:#f5f5f5;padding:14px 16px;border-radius:6px;font-size:15px;word-break:break-all;margin:0 0 24px">${key}</pre>
+<pre style="background:#f0fdf4;border:1px solid #bbf7d0;color:#065f46;padding:14px 16px;border-radius:8px;font-size:15px;word-break:break-all;margin:0 0 24px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">${key}</pre>
 
 <div style="background:#eef6ff;border-left:4px solid #58a6ff;padding:14px 18px;border-radius:6px;margin:0 0 22px">
   <p style="margin:0 0 6px;font-weight:600">🤖 Fast path — paste this email to your AI coding assistant</p>
@@ -197,7 +248,7 @@ function licenseEmailHtml(key: string, plan: string, siteUrl: string): string {
 </div>
 
 <h3 style="margin:0 0 8px">For the assistant — exact commands to run</h3>
-<pre style="background:#0e1116;color:#e6edf3;padding:14px 16px;border-radius:6px;font-size:13.5px;line-height:1.55;overflow-x:auto">
+<pre style="background:#f6f8fa;color:#1f2937;border:1px solid #e5e7eb;padding:14px 16px;border-radius:8px;font-size:13.5px;line-height:1.55;overflow-x:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">
 # One-shot install + activate + persist gating env
 npx -y @whdrnr2583/token-meter setup ${key}
 
@@ -245,8 +296,10 @@ async function sendLicenseEmail(
     body: JSON.stringify({
       from,
       to: [to],
+      reply_to: REPLY_TO_EMAIL,
       subject,
       html: licenseEmailHtml(key, plan, siteUrl),
+      text: licenseEmailText(key, plan, siteUrl),
     }),
   });
   if (!res.ok) {
