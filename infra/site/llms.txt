@@ -1,0 +1,39 @@
+# Token Meter
+
+> Token Meter is a free, local-first dashboard and MCP server that shows where your Claude Code and Codex tokens, cost, and time go. It parses the JSONL session logs these tools already write to disk — 100% offline, no SDK, no proxy, your data never leaves your machine.
+
+## What it does
+
+- Parses Claude Code (`~/.claude/projects/`) and OpenAI Codex (`~/.codex/sessions/`) JSONL logs into one dashboard.
+- Breaks down token usage and USD-equivalent cost per project, per model, per MCP tool, per hour.
+- Surfaces which MCP server eats the most tokens, which tool is slowest (latency, response size, call count), and your most expensive hours.
+- Estimates what the same usage would have cost on metered API pricing — useful on flat-fee plans (Claude Max, etc.) to see savings or burn.
+- Cache-efficiency reporting: how much prompt caching actually saved you.
+- Ships an MCP server so an AI assistant can answer "this week's spend", "recent sessions to resume", or "why was session X expensive" without opening the dashboard.
+
+## Keywords
+
+Claude Code token usage tracker, Codex cost tracking, Claude Code spending tracker, AI token cost dashboard, Claude budget monitor, MCP tool breakdown, MCP token analyzer, LLM cost tracking, local-first AI usage, FinOps for AI coding, open source token counter.
+
+## Install
+
+```
+npm install -g @whdrnr2583/token-meter
+token-meter ingest && token-meter serve   # dashboard at http://localhost:8765
+```
+
+Terminal stats: `npx @whdrnr2583/token-meter stats 7`
+Wire MCP into a client: `npx -y @whdrnr2583/token-meter install-mcp all`
+
+## Pricing
+
+- Free ($0): Claude Code + Codex parsing, MCP/tool breakdown, project/model/hour breakdown, 7-day history, USD-equivalent cost, 1 desktop alert.
+- Pro ($5/mo): 30-day history, unlimited smart alerts (desktop + webhook), session drill-down, cache-efficiency savings, waste signals.
+- Pro+ (later): unlimited history, local LLM proxy (Ollama/LM Studio/llama.cpp/vLLM), GPU/VRAM tracking, automation, benchmark lab, multi-machine sync, PDF reports.
+
+## Links
+
+- Site: https://token-meter.dev
+- Source (MIT core): https://github.com/whdrnr2583-cmd/token-meter
+- npm: https://www.npmjs.com/package/@whdrnr2583/token-meter
+- MCP setup: https://github.com/whdrnr2583-cmd/token-meter/blob/main/docs/mcp-server.md
