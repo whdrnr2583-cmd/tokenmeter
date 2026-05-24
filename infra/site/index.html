@@ -20,6 +20,58 @@
     <link rel="icon" href="/logo-transparent.png" type="image/png" sizes="256x256" />
     <link rel="apple-touch-icon" href="/logo-transparent.png" />
     <link rel="stylesheet" href="/styles.css" />
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Token Meter",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "macOS, Linux, Windows",
+      "url": "https://token-meter.dev",
+      "downloadUrl": "https://www.npmjs.com/package/@whdrnr2583/token-meter",
+      "softwareHelp": "https://github.com/whdrnr2583-cmd/token-meter",
+      "description": "Token Meter is a free, local-first dashboard and MCP server that tracks Claude Code and Codex token usage, cost, and spending — per project, model, and MCP tool. Your JSONL logs never leave your machine.",
+      "license": "https://opensource.org/licenses/MIT",
+      "offers": [
+        { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "USD" },
+        { "@type": "Offer", "name": "Pro", "price": "5", "priceCurrency": "USD" }
+      ],
+      "publisher": { "@type": "Organization", "name": "Token Meter", "url": "https://token-meter.dev" }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What is Token Meter?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Token Meter is a free, local-first dashboard and MCP server that parses the JSONL logs Claude Code and OpenAI Codex already write to disk, and shows your token usage, USD-equivalent cost, and spending per project, model, and MCP tool — 100% offline." }
+        },
+        {
+          "@type": "Question",
+          "name": "Does Token Meter send my data to the cloud?",
+          "acceptedAnswer": { "@type": "Answer", "text": "No. It reads local JSONL logs and stores everything in a local SQLite database on your machine. No upload, and no cloud account is required for the free tier." }
+        },
+        {
+          "@type": "Question",
+          "name": "Which AI tools does Token Meter support?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Claude Code (~/.claude/projects/) and OpenAI Codex (~/.codex/sessions/), merged into one view. No SDK or proxy required." }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I track Claude Code token usage and cost?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Install with 'npm install -g @whdrnr2583/token-meter', then run 'token-meter ingest && token-meter serve' to open a local dashboard at http://localhost:8765. You can also query it from your AI assistant over MCP." }
+        },
+        {
+          "@type": "Question",
+          "name": "How much does Token Meter cost?",
+          "acceptedAnswer": { "@type": "Answer", "text": "The CLI and dashboard are free and MIT-licensed. Pro is $5/month and adds 30-day history, per-session drill-down, cache-efficiency savings, and waste signals." }
+        }
+      ]
+    }
+    </script>
   </head>
   <body>
     <header>
