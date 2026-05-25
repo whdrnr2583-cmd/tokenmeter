@@ -122,6 +122,15 @@ export function migrate(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_pending_notif_unconsumed
       ON pending_desktop_notifications(consumed_at, fired_at);
   `);
+
+  // Pro-batch migrations (feat/pro-batch): user_settings table for budget etc.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_settings (
+      key        TEXT PRIMARY KEY,
+      value      TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+  `);
 }
 
 export function insertTokenEvents(db: Database.Database, rows: TokenEvent[]): number {

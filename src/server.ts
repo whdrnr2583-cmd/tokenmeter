@@ -5,6 +5,10 @@ import { dirname, join } from 'node:path';
 import { migrate, openDb } from './db.js';
 import { ingestAll } from './ingest.js';
 import { byHour, byMcp, byModel, byProject, daily, overview } from './stats.js';
+import { forecastMonthly, getMonthlyBudget, setMonthlyBudget } from './forecast.js';
+import { exportCsv, exportJson } from './export.js';
+import { gatherDigestFacts, renderDigestText, sendWeeklyDigest } from './digest.js';
+import { computeTrimSuggestions } from './trim-suggestions.js';
 import {
   createRule,
   deleteRule,
@@ -306,6 +310,99 @@ export async function startDashboard(): Promise<void> {
       )
       .all(since);
     return { days, rows };
+  });
+
+  // ---------- Feature 1: Cost forecast + pacing (Pro) ----------
+
+  app.get('/api/forecast', async (_req, reply) => {
+    const ent = getEntitlement();
+    if (!isProTier(ent.tier)) return reply.code(402).send(paywall('cost_forecast'));
+    return forecastMonthly(db);
+  });
+
+  app.get('/api/settings/budget', async (_req, reply) => {
+    const ent = getEntitlement();
+    if (!isProTier(ent.tier)) return reply.code(402).send(paywall('cost_forecast'));
+    return { monthly_budget_usd: getMonthlyBudget(db) };
+  });
+
+  app.post('/api/settings/budget', async (req, reply) => {
+    const ent = getEntitlement();
+    if (!isProTier(ent.tier)) return reply.code(402).send(paywall('cost_forecast'));
+    const body = req.body as { monthly_budget_usd?: unknown } | null;
+    const raw = body?.monthly_budget_usd;
+    if (raw === null || raw === undefined) {
+      setMonthlyBudget(db, null);
+      return { monthly_budget_usd: null };
+    }
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n <= 0) {
+      return reply.code(400).send({ error: 'invalid_budget', field: 'monthly_budget_usd' });
+    }
+    setMonthlyBudget(db, n);
+    return { monthly_budget_usd: n };
+  });
+
+  // ---------- Feature 2: Export (Pro) ----------
+
+  app.get('/api/export', async (req, reply) => {
+    const ent = getEntitlement();
+    if (!isProTier(ent.tier)) return reply.code(402).send(paywall('csv_json_export'));
+    const q = req.query as Record<string, unknown>;
+    const days = daysFromQuery(q.days);
+    const format = typeof q.format === 'string' ? q.format.toLowerCase() : 'json';
+    if (format === 'csv') {
+      reply.header('Content-Type', 'text/csv; charset=utf-8');
+      reply.header('Content-Disposition', `attachment; filename="token-meter-${days}d.csv"`);
+      return reply.send(exportCsv(db, days));
+    }
+    // Default: JSON
+    reply.header('Content-Type', 'application/json; charset=utf-8');
+    reply.header('Content-Disposition', `attachment; filename="token-meter-${days}d.json"`);
+    return reply.send(exportJson(db, days));
+  });
+
+  // ---------- Feature 3: Weekly digest facts (Pro) ----------
+
+  app.get('/api/digest/facts', async (_req, reply) => {
+    const ent = getEntitlement();
+    if (!isProTier(ent.tier)) return reply.code(402).send(paywall('weekly_digest'));
+    return gatherDigestFacts(db);
+  });
+
+  app.get('/api/digest/preview', async (_req, reply) => {
+    const ent = getEntitlement();
+    if (!isProTier(ent.tier)) return reply.code(402).send(paywall('weekly_digest'));
+    const facts = gatherDigestFacts(db);
+    const text = renderDigestText(facts);
+    reply.header('Content-Type', 'text/plain; charset=utf-8');
+    return reply.send(text);
+  });
+
+  app.post('/api/digest/send', async (req, reply) => {
+    const ent = getEntitlement();
+    if (!isProTier(ent.tier)) return reply.code(402).send(paywall('weekly_digest'));
+    const body = req.body as { to?: unknown; license_key?: unknown } | null;
+    const to = typeof body?.to === 'string' ? body.to.trim() : '';
+    const key = typeof body?.license_key === 'string' ? body.license_key.trim() : '';
+    if (!to || !to.includes('@')) {
+      return reply.code(400).send({ error: 'invalid_email', field: 'to' });
+    }
+    if (!key) {
+      return reply.code(400).send({ error: 'missing_license_key', field: 'license_key' });
+    }
+    const result = await sendWeeklyDigest(db, to, key);
+    return result;
+  });
+
+  // ---------- Feature 4: Auto-trim suggestions (Pro) ----------
+
+  app.get('/api/trim-suggestions', async (req, reply) => {
+    const ent = getEntitlement();
+    if (!isProTier(ent.tier)) return reply.code(402).send(paywall('trim_suggestions'));
+    const days = daysFromQuery((req.query as Record<string, unknown>).days);
+    const suggestions = computeTrimSuggestions(db, days);
+    return { days, count: suggestions.length, suggestions };
   });
 
   await app.listen({ host: '127.0.0.1', port: PORT });

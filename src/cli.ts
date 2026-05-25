@@ -1,13 +1,15 @@
 #!/usr/bin/env node
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { migrate, openDb } from './db.js';
 import { ingestAll } from './ingest.js';
 import { byMcp, byModel, byProject, daily, overview } from './stats.js';
-import { clampDaysToEntitlement, getEntitlement } from './license.js';
+import { clampDaysToEntitlement, getEntitlement, isProTier } from './license.js';
 
 const USAGE = `Usage:
   token-meter ingest [--force]              Scan JSONL → SQLite
   token-meter stats [days=30]               Print summary
+  token-meter export <csv|json> [days=30] [--out <path>]
+                                            Export data (Pro)
   token-meter serve                         Run the dashboard at http://localhost:8765
   token-meter mcp                           Run as an MCP server (stdio) for Claude Code / Cursor
   token-meter install-mcp <client>          Register the MCP server (one of:
@@ -261,6 +263,34 @@ async function main(): Promise<void> {
     const { startMcpServer } = await import('./mcp.js');
     await startMcpServer();
     // startMcpServer keeps the process alive over stdio.
+    return;
+  }
+
+  if (cmd === 'export') {
+    const fmt = rest.find((s) => s === 'csv' || s === 'json') ?? 'json';
+    const daysArg = rest.find((s) => /^\d+$/.test(s));
+    const requested = daysArg ? Number.parseInt(daysArg, 10) : 30;
+    const outIdx = rest.indexOf('--out');
+    const outPath = outIdx !== -1 ? rest[outIdx + 1] : undefined;
+
+    const ent = getEntitlement();
+    if (!isProTier(ent.tier)) {
+      console.error(
+        '[Free tier] export is a Pro feature. See https://token-meter.dev#pricing',
+      );
+      process.exit(1);
+    }
+
+    const days = clampDaysToEntitlement(requested, ent.tier);
+    const { exportCsv, exportJson } = await import('./export.js');
+    const content = fmt === 'csv' ? exportCsv(db, days) : exportJson(db, days);
+
+    if (outPath) {
+      writeFileSync(outPath, content, 'utf8');
+      console.log(`Exported ${days}-day ${fmt.toUpperCase()} to ${outPath}`);
+    } else {
+      process.stdout.write(content + '\n');
+    }
     return;
   }
 
