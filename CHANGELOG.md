@@ -5,6 +5,28 @@ All notable changes to Token Meter.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.17] — 2026-05-27
+
+### Added
+- **Cost forecast** (`usage_summary`): projects daily/weekly/monthly spend based on current-period
+  pace so users can see "at this rate, this month will cost $X" before the bill arrives.
+- **CSV / JSON export** (`token-meter export [--format csv|json] [--days N]`): dump the usage
+  table to a file for use in spreadsheets, BI tools, or custom scripts.
+- **Weekly digest** (`token-meter digest`): summarises the past 7 days — top models, top
+  projects, cache efficiency, and waste signals — in a single terminal block. Designed for a
+  Monday morning `npx @whdrnr2583/token-meter digest` habit.
+- **Trim suggestions**: when the `session_tools` MCP tool (or CLI equivalent) detects
+  outlier-large tool responses (>95th-percentile chars), it now appends a concrete
+  "trim this tool" recommendation with the estimated token savings.
+
+### Why
+Pro-tier value consolidation. CSV/JSON export and forecast were the two most-requested
+items from dogfood sessions; weekly digest and trim suggestions close the
+"I know I'm spending but I don't know what to do about it" loop.
+
+PMF gate note: published with 0 paid users — 1 intentional override (user decision 2026-05-27).
+New features frozen again post-publish until PMF gate advances.
+
 ## [0.1.16] — 2026-05-20
 
 ### Added
